@@ -1,0 +1,42 @@
+
+
+programs:
+    top:
+        cmd: "/usr/bin/top"
+        numProcs: 1
+        autoStart: true
+        autoRestart: never # always unexpected
+        exitCodes:
+            - 0
+            - 2
+        startTime: 5
+        startRetries: 3
+        stopSignal: TERM
+        killTime: 10
+        stdout: /tmp/top.log
+        stderr: /tmp/top.error.log
+        env:
+            STARTED_BY: taskmaster
+            ANSWER: 42
+        workingDir: /tmp
+        umask: 022
+    ls:
+        cmd: "/bin/ls"
+        numProcs: 1
+        autoStart: true
+        autoRestart: never # always unexpected
+        exitCodes:
+            - 0
+            - 2
+        startTime: 5
+        startRetries: 3
+        stopSignal: TERM
+        killTime: 10
+        stdout: /tmp/top.log
+        stderr: /tmp/top.error.log
+        env:
+            STARTED_BY: taskmaster
+            ANSWER: 42
+        workingDir: /tmp
+        umask: 022
+

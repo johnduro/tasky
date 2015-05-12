@@ -8,55 +8,45 @@ import sys
 import psutil
 import datetime
 import time
+import os
 
 from subprocess import call
 
+# rajouter une valeur 'status' dans les dict pour savoir ou on en est
+# retirer les process de la liste quand ils sont termines et traites ?
+# umask ne fonctionne pas
+
 class _TaskMaster:
     """class for program management"""
-    def __init__( self, conf ):
-        # self.conf = {}
+    def __init__( self, conf, args ):
         self.conf = conf
+        self.args = args
 
     def runTM( self ):
-        # print "HERE"
         self.initFirstLaunch()
-        # print "THERE"
         self.makeLoop()
-        # print "HOHO"
-        # for (key, value) in self.conf['programs'].items():
-        #     for prog in value['proX']:
-        #         print prog[0]
-        #         print prog[1].pid
-        #         if prog[1].poll():
-        #             print "running"
 
     def makeLoop( self ):
         while (42):
-            # print "in loop"
             if not 'programs' in self.conf:
                 raise NameError("No 'programs' in configuration")
             else:
                 self.managePrograms(self.conf['programs'])
-            # print "out loop"
 
     def managePrograms( self, programs ):
-        # print "in manage"
         for (key, value) in programs.items():
-            print key
+            # print key #p
             for proX in value['proX']:
-                poll = proX[1].poll()
-                print "POLL"
-                print poll
-                if poll != None:
-                    if value['autoRestart'] == 'always':
-                        # print "ALWAYS"
-                        proX = (datetime, psutil.Popen(value['cmd'].split()))
+                returnValue = proX[1].poll()
+                # print "POLL" #p
+                # print returnValue #p
+                if returnValue != None:
+                    if value['autoRestart'] == 'always' or value['autoRestart'] == 'unexpected':
+                        if returnValue not in value['exitCodes'] or value['autoRestart'] == 'always':
+                            self.lauchProg(key, value)
+                            # proX.append((datetime, psutil.Popen(value['cmd'].split())))
                     elif value['autoRestart'] == 'never':
                         continue
-                    elif value['autoRestart'] == 'unexpected':
-                        # print "UNEXPECTED"
-                        if poll not in value['exitCodes']:
-                            proX = (datetime, psutil.Popen(value['cmd'].split()))
 
 
     def initFirstLaunch( self ):
@@ -66,16 +56,30 @@ class _TaskMaster:
         else:
             for (key, value) in self.conf['programs'].items():
                 value['proX'] = []
-                value['proX'].append((datetime, psutil.Popen(value['cmd'].split())))
-                # value['proX']['pList'].append()
+                if value['autoStart'] == True:
+                    self.launchProg(key, value)
+
+    def launchProg( self, progName, progConf):
+        """lance les processus de progName avec la configuration dans progConf"""
+        if self.args.verbose:
+            print "Launching process : " + progName
+        # if 'umask' in progConf:
+        #     print "UMSK FIRST"
+        #     print int(str(progConf['umask']), 8)
+        #     oldMask = os.umask(progConf['umask'])
+        progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
+        # if 'umask' in progConf:
+        #     print "UMSK SECOND"
+        #     print oldMask
+        #     os.umask(oldMask)
+
 
 def main():
-    # programs = open("config.yaml", 'r')
-    # proglist = yaml.load(programs)
     try:
         conf = {}
         parser = argparse.ArgumentParser()
         parser.add_argument("-d", "--daemon", help="run program as daemon", action="store_true")
+        parser.add_argument("-v", "--verbose", help="talk a lot", action="store_true")
         parser.add_argument("-c", "--configuration-file", nargs='+', help="allow user to load specific configuration file")
         args = parser.parse_args()
         if args.configuration_file:
@@ -86,8 +90,7 @@ def main():
                         conf[key] = value
                     else:
                         conf[key].update(value)
-        # print conf
-        taskMaster = _TaskMaster(conf)
+        taskMaster = _TaskMaster(conf, args)
         taskMaster.runTM()
     except:
         print "FAIL error in main : ", sys.exc_info()[1]

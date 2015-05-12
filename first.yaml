@@ -1,20 +1,20 @@
 
 
 programs:
-    top:
+    echo:
         cmd: "/bin/echo hoh"
         numProcs: 1
-        autoStart: true
-        autoRestart: unexpected # always unexpected
+        autoStart: true #
+        autoRestart: unexpected # always unexpected never
         exitCodes:
-            # - 0
+            - 0
             - 2
         startTime: 5
         startRetries: 3
         stopSignal: TERM
         killTime: 10
-        stdout: /tmp/top.log
-        stderr: /tmp/top.error.log
+        stdout: /tmp/echo.log
+        stderr: /tmp/echo.error.log
         env:
             STARTED_BY: taskmaster
             ANSWER: 42
@@ -24,7 +24,7 @@ programs:
         cmd: "/bin/ls"
         numProcs: 1
         autoStart: true
-        autoRestart: never # always unexpected
+        autoRestart: never # always unexpected never
         exitCodes:
             - 0
             - 2
@@ -32,11 +32,30 @@ programs:
         startRetries: 3
         stopSignal: TERM
         killTime: 10
-        stdout: /tmp/top.log
-        stderr: /tmp/top.error.log
+        stdout: /tmp/ls.log
+        stderr: /tmp/ls.error.log
         env:
             STARTED_BY: taskmaster
             ANSWER: 42
         workingDir: /tmp
         umask: 022
+    touch:
+        cmd: "/bin/touch toto"
+        numProcs: 1
+        autoStart: true
+        autoRestart: never # always unexpected never
+        exitCodes:
+            - 0
+            - 2
+        startTime: 5
+        startRetries: 3
+        stopSignal: TERM
+        killTime: 10
+        stdout: /tmp/ls.log
+        stderr: /tmp/ls.error.log
+        env:
+            STARTED_BY: taskmaster
+            ANSWER: 42
+        workingDir: /tmp
+        umask: 777
 

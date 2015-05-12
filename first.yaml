@@ -2,12 +2,12 @@
 
 programs:
     top:
-        cmd: "/usr/bin/top"
+        cmd: "/bin/echo hoh"
         numProcs: 1
         autoStart: true
-        autoRestart: never # always unexpected
+        autoRestart: unexpected # always unexpected
         exitCodes:
-            - 0
+            # - 0
             - 2
         startTime: 5
         startRetries: 3

@@ -38,13 +38,13 @@ for (key, value) in proglist['programs'].items():
 while (1):
     for (slug, title) in proglist['programs'].items():
         a = title['proX'].poll()
-        if (a == None and title['autorestart'] == 'unexpected'):
-            continue
-        if (a == -9):
-            sys.exit(0)
-        else:
-            title['proX'] = psutil.Popen(title['cmd'])
-        print title['proX'].pid
+        if (a != None and title['autorestart'] != None):
+            if (a == -9):
+                sys.exit(0)
+            else:
+                title['proX'] = psutil.Popen(title['cmd'])
+        if (a == None):
+            print title['proX'].pid
 
                 # a = proc0.poll()
 

@@ -35,17 +35,20 @@ class _TaskMaster:
 
     def managePrograms( self, programs ):
         for (key, value) in programs.items():
-            # print key #p
+            #print key #p
             for proX in value['proX']:
                 returnValue = proX[1].poll()
-                # print "POLL" #p
-                # print returnValue #p
+                #print "POLL" #p
+                #print returnValue #p
+                #print proX[1].pid #p
                 if returnValue != None:
-                    if value['autoRestart'] == 'always' or value['autoRestart'] == 'unexpected':
-                        if returnValue not in value['exitCodes'] or value['autoRestart'] == 'always':
-                            self.lauchProg(key, value)
+                    if value['autorestart'] == 'always' or value['autorestart'] == 'unexpected':
+                        if returnValue not in value['exitcodes'] or value['autorestart'] == 'always':
+                            self.relaunchProg(key, value)
                             # proX.append((datetime, psutil.Popen(value['cmd'].split())))
-                    elif value['autoRestart'] == 'never':
+                        else:
+                            self.exitingProg(key, value, returnValue)
+                    elif value['autorestart'] == 'never':
                         continue
 
 
@@ -56,8 +59,42 @@ class _TaskMaster:
         else:
             for (key, value) in self.conf['programs'].items():
                 value['proX'] = []
-                if value['autoStart'] == True:
+                if value['autostart'] == True:
                     self.launchProg(key, value)
+
+    def exitingProg( self, progName, progConf, returnValue):
+        """lance les processus de progName avec la configuration dans progConf"""
+        if self.args.verbose:
+            print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
+        # if 'umask' in progConf:
+        #     print "UMSK FIRST"
+        #     print int(str(progConf['umask']), 8)
+        #     oldMask = os.umask(progConf['umask'])
+        progConf['proX'] = []
+        #self.launchProg(progName, progConf)
+        # if 'umask' in progConf:
+        #     print "UMSK SECOND"
+        #     print oldMask
+        #     os.umask(oldMask)
+
+    def relaunchProg( self, progName, progConf):
+        """lance les processus de progName avec la configuration dans progConf"""
+        if self.args.verbose:
+            print "ReLaunching process : " + progName
+        # if 'umask' in progConf:
+        #     print "UMSK FIRST"
+        #     print int(str(progConf['umask']), 8)
+        #     oldMask = os.umask(progConf['umask'])
+        progConf['proX'] = []
+        progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
+        if self.args.verbose:
+            print "pid : " + str(progConf['proX'][0][1].pid)
+        #self.launchProg(progName, progConf)
+        # if 'umask' in progConf:
+        #     print "UMSK SECOND"
+        #     print oldMask
+        #     os.umask(oldMask)
+
 
     def launchProg( self, progName, progConf):
         """lance les processus de progName avec la configuration dans progConf"""
@@ -68,6 +105,8 @@ class _TaskMaster:
         #     print int(str(progConf['umask']), 8)
         #     oldMask = os.umask(progConf['umask'])
         progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
+        if self.args.verbose:
+            print "pid : " + str(progConf['proX'][0][1].pid)
         # if 'umask' in progConf:
         #     print "UMSK SECOND"
         #     print oldMask

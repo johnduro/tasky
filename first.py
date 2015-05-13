@@ -43,7 +43,7 @@ class _TaskMaster:
                 #print proX[1].pid #p
                 if returnValue != None:
                     if value['autorestart'] == 'always' or value['autorestart'] == 'unexpected':
-                        if returnValue not in value['exitcodes'] or value['autorestart'] == 'always':
+                        if value['startretries'] > 0 and returnValue not in value['exitcodes'] or value['autorestart'] == 'always':
                             self.relaunchProg(key, value)
                             # proX.append((datetime, psutil.Popen(value['cmd'].split())))
                         else:
@@ -70,6 +70,7 @@ class _TaskMaster:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)
         #     oldMask = os.umask(progConf['umask'])
+
         progConf['proX'] = []
         #self.launchProg(progName, progConf)
         # if 'umask' in progConf:
@@ -79,8 +80,10 @@ class _TaskMaster:
 
     def relaunchProg( self, progName, progConf):
         """lance les processus de progName avec la configuration dans progConf"""
+        progConf['startretries'] -= 1
         if self.args.verbose:
             print "ReLaunching process : " + progName
+            print "remaining retry : " + str(progConf['startretries'])
         # if 'umask' in progConf:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)

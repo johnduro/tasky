@@ -1,0 +1,58 @@
+programs:
+    echo:
+        cmd: "/bin/echo hoh"
+        numprocs: 1
+        autostart: true #
+        autorestart: unexpected # always unexpected never
+        exitcodes:
+            - 0
+            - 2
+        starttime: 5
+        startretries: 3
+        stopsignal: TERM
+        killtime: 10
+        stdout: /tmp/echo.log
+        stderr: /tmp/echo.error.log
+        env:
+            STARTED_BY: taskmaster
+            ANSWER: 42
+        workingdir: /tmp
+        umask: 022
+    ls:
+        cmd: "/bin/ls"
+        numprocs: 1
+        autostart: true
+        autorestart: never # always unexpected never
+        exitcodes:
+            - 0
+            - 2
+        starttime: 5
+        startretries: 3
+        stopsignal: TERM
+        killtime: 10
+        stdout: /tmp/ls.log
+        stderr: /tmp/ls.error.log
+        env:
+            STARTED_BY: taskmaster
+            ANSWER: 42
+        workingdir: /tmp
+        umask: 022
+    touch:
+        cmd: "/usr/bin/touch toto"
+        numprocs: 1
+        autostart: true
+        autorestart: never # always unexpected never
+        exitcodes:
+            - 0
+            - 2
+        starttime: 5
+        startretries: 3
+        stopsignal: TERM
+        killtime: 10
+        stdout: /tmp/ls.log
+        stderr: /tmp/ls.error.log
+        env:
+            STARTED_BY: taskmaster
+            ANSWER: 42
+        workingdir: /tmp
+        umask: 777

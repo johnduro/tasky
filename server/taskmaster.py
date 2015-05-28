@@ -11,7 +11,7 @@ import readline, re, socket
 from exit import exiting, Scolors
 from subprocess import call
 #SIMILI MACROS
-UNIX_SOCKET_PATH = "/tmp/conn"
+UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 
 class _TaskMaster:
     """class for program management"""
@@ -57,7 +57,7 @@ class _TaskMaster:
         except KeyboardInterrupt:
             exiting()
 
-    def exec_instruct( self, instruct ):
+    def execInstruct( self, instruct ):
         if (re.match("list", instruct)):
             return self.list_prog()
         elif (re.match("shutdown", instruct)):
@@ -74,7 +74,7 @@ class _TaskMaster:
             return self.info(instruct[5:])
         return "Instruction doesn't exist\n"
 
-    def list_prog( self ):
+    def listProg( self ):
         out = ""
         for (key, value) in self.conf['programs'].items():
             out += key + ":"
@@ -92,7 +92,7 @@ class _TaskMaster:
         exiting()
         return ""
 
-    def start_all( self ):
+    def startAll( self ):
         out = "Fonction start_all incomplete"
 
         return out

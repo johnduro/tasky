@@ -11,14 +11,31 @@ import os
 
 from exit import Scolors
 
+PID_FILE = "/tmp/taskmaster.pid"
+
+def daemonize():
+    print "D-MON"
+
 def main():
     # try:
     conf = {}
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--daemon", help="run program as daemon", action="store_true")
     parser.add_argument("-v", "--verbose", help="talk a lot", action="store_true")
+    parser.add_argument("stop", help="stop", action="store_true")
+    parser.add_argument("start", help="start", action="store_true")
+    parser.add_argument("restart", help="restart", action="store_true")
+    # rajouter start et stop ?? les gerer de la
     parser.add_argument("-c", "--configuration-file", nargs='+', help="allow user to load specific configuration file")
     args = parser.parse_args()
+    if args.stop:
+        print "STOP"
+    if args.start:
+        print "START"
+    if args.restart:
+        print "RESTART"
+    if args.daemon:
+        daemonize()
     if args.configuration_file:
         for _file in args.configuration_file:
             openConf = yaml.load(open(_file, 'r'))

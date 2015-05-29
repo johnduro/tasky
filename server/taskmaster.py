@@ -7,6 +7,7 @@ import datetime
 import time
 import os, os.path #path pour remove de tmp
 import readline, re, socket
+import pickle
 
 from exit import exiting, Scolors
 from subprocess import call
@@ -15,9 +16,9 @@ UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 
 class _TaskMaster:
     """class for program management"""
-    def __init__( self, conf, args ):
+    def __init__( self, conf ):
         self.conf = conf
-        self.args = args
+        # self.args = args
         self.initConn()
 
     def initConn( self ):
@@ -48,7 +49,7 @@ class _TaskMaster:
                     raise NameError("No 'programs' in configuration")
                 elif len(buf) > 0:
                     print buf
-                    ret = self.exec_instruct(buf)
+                    ret = self.execInstruct(buf)
                     self.clientsocket.send(str(len(ret)))
                     if (len(self.clientsocket.recv(8))):
                         self.clientsocket.send(ret)
@@ -57,21 +58,35 @@ class _TaskMaster:
         except KeyboardInterrupt:
             exiting()
 
+    def getConfig( self ):
+        # print "NOOOOOO"
+        sendConf = self.conf.copy()
+
+        for (key, value) in sendConf['programs'].items():
+            if "proX" in value:
+                sendConf['programs'][key].pop("proX", None)
+
+        serializedConf = pickle.dumps(sendConf)
+        return serializedConf
+
     def execInstruct( self, instruct ):
+        # print "YOLO"
         if (re.match("list", instruct)):
-            return self.list_prog()
+            return self.listProg()
         elif (re.match("shutdown", instruct)):
             return self.shutdown()
         elif (re.match("list", instruct)):
-            return self.list_prog()
+            return self.listProg()
         elif (re.match("start_all", instruct)):
-            return self.start_all()
+            return self.startAll()
         elif (re.match("start ", instruct)):
             return self.start(instruct[6:])
         elif (re.match("stop ", instruct)):
             return self.stop(instruct[5:])
         elif (re.match("info ", instruct)):
             return self.info(instruct[5:])
+        elif (re.match("getConfig", instruct)):
+            return self.getConfig()
         return "Instruction doesn't exist\n"
 
     def listProg( self ):
@@ -142,7 +157,8 @@ class _TaskMaster:
 
     def exitingProg( self, progName, progConf, returnValue):
         """lance les processus de progName avec la configuration dans progConf"""
-        if self.args.verbose:
+        # if self.args.verbose:
+        if self.conf["args"].verbose:
             print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
         # if 'umask' in progConf:
         #     print "UMSK FIRST"
@@ -159,7 +175,8 @@ class _TaskMaster:
     def relaunchProg( self, progName, progConf):
         """lance les processus de progName avec la configuration dans progConf"""
         progConf['startretries'] -= 1
-        if self.args.verbose:
+        if self.conf["args"].verbose:
+        # if self.args.verbose:
             print "ReLaunching process : " + progName
             print "Remaining retries : " + str(progConf['startretries'])
         # if 'umask' in progConf:
@@ -168,7 +185,8 @@ class _TaskMaster:
         #     oldMask = os.umask(progConf['umask'])
         progConf['proX'] = []
         progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
-        if self.args.verbose:
+        if self.conf["args"].verbose:
+        # if self.args.verbose:
             print "pid : " + str(progConf['proX'][0][1].pid)
         #self.launchProg(progName, progConf)
         # if 'umask' in progConf:
@@ -179,14 +197,16 @@ class _TaskMaster:
 
     def launchProg( self, progName, progConf):
         """lance les processus de progName avec la configuration dans progConf"""
-        if self.args.verbose:
+        if self.conf["args"].verbose:
+        # if self.args.verbose:
             print "Launching process : " + progName
         # if 'umask' in progConf:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)
         #     oldMask = os.umask(progConf['umask'])
         progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
-        if self.args.verbose:
+        if self.conf["args"].verbose:
+        # if self.args.verbose:
             print "pid : " + str(progConf['proX'][0][1].pid)
         # if 'umask' in progConf:
         #     print "UMSK SECOND"

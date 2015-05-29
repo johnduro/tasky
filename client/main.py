@@ -12,9 +12,11 @@ from socket import error as socket_error
 #gestion daemon
 from daemon import Daemon
 
+UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
+
 progs = {}
 
-#liste des instructions considerees valides 
+#liste des instructions considerees valides
 valid = ["start ", "stop ", "shutdown", "launch", "list", "info ", "start_all"]
 validQuery = ""
 for instruc in valid:
@@ -29,7 +31,8 @@ print validQuery
 def init_conn(clientsocket):
     try:
         # clientsocket.connect(('localhost', 8965))
-        clientsocket.connect("/tmp/conn")
+        clientsocket.connect(UNIX_SOCKET_PATH)
+        # clientsocket.connect("/tmp/conn")
     except socket_error as serr:
         if serr.errno != errno.ECONNREFUSED:
             # Not the error we are looking for, re-raise

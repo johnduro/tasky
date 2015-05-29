@@ -43,6 +43,7 @@ class _TaskMaster:
     def makeLoop( self ):
         try:
             while (42):
+                #bloquant ?? utiliser select ? ou setblocking(0) ?
                 (self.clientsocket, address) = self.serversocket.accept()
                 buf = self.clientsocket.recv(2048)
                 if not 'programs' in self.conf:

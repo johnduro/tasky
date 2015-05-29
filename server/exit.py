@@ -18,3 +18,4 @@ class Scolors:
 def exiting():
     print Scolors.GREEN + "\nServer shutting down..." + Scolors.ENDC
     exit()
+

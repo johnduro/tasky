@@ -17,7 +17,7 @@ UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 progs = {}
 
 #liste des instructions considerees valides
-valid = ["start ", "stop ", "shutdown", "launch", "list", "info ", "start_all"]
+valid = ["start ", "stop ", "restart ", "shutdown", "launch", "list", "info ", "start_all", "stop_all"]
 validQuery = ""
 for instruc in valid:
     if (len(validQuery)):
@@ -66,7 +66,7 @@ def check_instruction(instruction):
     return 0
 
 def main():
-    daemon = MyDaemon('../server/')
+    # daemon = MyDaemon('../server/')
 
 
     try:

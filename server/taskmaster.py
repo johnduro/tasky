@@ -8,6 +8,7 @@ import time
 import os, os.path #path pour remove de tmp
 import readline, re, socket
 import pickle
+import select
 
 from exit import exiting, Scolors
 from subprocess import call
@@ -41,21 +42,42 @@ class _TaskMaster:
         self.makeLoop()
 
     def makeLoop( self ):
+        read_list = [self.serversocket]
         try:
             while (42):
-                #bloquant ?? utiliser select ? ou setblocking(0) ?
-                (self.clientsocket, address) = self.serversocket.accept()
-                buf = self.clientsocket.recv(2048)
-                if not 'programs' in self.conf:
-                    raise NameError("No 'programs' in configuration")
-                elif len(buf) > 0:
-                    print buf
-                    ret = self.execInstruct(buf)
-                    self.clientsocket.send(str(len(ret)))
-                    if (len(self.clientsocket.recv(8))):
-                        self.clientsocket.send(ret)
-                else:
-                    self.managePrograms(self.conf['programs'])
+                readable, writable, errored = select.select(read_list, [], [], 1)
+                for s in readable:
+                    if s is self.serversocket:
+                        self.clientsocket, address = self.serversocket.accept()
+                        read_list.append(self.clientsocket)
+                    else:
+                        buf = s.recv(2048)
+                        if not 'programs' in self.conf:
+                            raise NameError("No 'programs' in configuration")
+                        elif len(buf) > 0:
+                            print buf
+                            ret = self.execInstruct(buf)
+                            self.clientsocket.send(str(len(ret)))
+                            if (len(self.clientsocket.recv(8))):
+                                self.clientsocket.send(ret)
+                        else:
+                            s.close()
+                            read_list.remove(s)
+
+                self.managePrograms(self.conf['programs'])
+
+                for (key, prog) in self.conf['programs'].items():
+                    if prog['process'].poll() != None:
+                        print key + " TERMINATED with ret code : "
+                        print prog['process'].returncode
+                        print "\n"
+                    else:
+                        print key + " launched..."
+                    # (stdoutdata, stderrdata) = prog['process'].communicate()
+                    # print prog['process'].returncode, stdoutdata
+                # (self.clientsocket, address) = self.serversocket.accept()
+                # buf = self.clientsocket.recv(2048)
+                # else:
         except KeyboardInterrupt:
             exiting()
 
@@ -80,10 +102,14 @@ class _TaskMaster:
             return self.listProg()
         elif (re.match("start_all", instruct)):
             return self.startAll()
+        elif (re.match("stop_all", instruct)):
+            return self.stopAll()
         elif (re.match("start ", instruct)):
             return self.start(instruct[6:])
         elif (re.match("stop ", instruct)):
             return self.stop(instruct[5:])
+        elif (re.match("restart ", instruct)):
+            return self.start(instruct[8:])
         elif (re.match("info ", instruct)):
             return self.info(instruct[5:])
         elif (re.match("getConfig", instruct)):
@@ -109,18 +135,31 @@ class _TaskMaster:
         return ""
 
     def startAll( self ):
-        out = "Fonction start_all incomplete"
+        out = ""
+        for (key, value) in self.conf['programs'].items():
+            out += self.launchProg(key, value) + "\n"
+
+        return out
+
+    def stopAll( self ):
+        out = ""
+        for (key, value) in self.conf['programs'].items():
+            out += self.exitingProg(key, value) + "\n"
 
         return out
 
     def start( self, name ):
-        out = "Fonction start incomplete"
+        out = self.launchProg(name, self.conf['programs'].get(name))
+        return out
+
+    def restart( self, name ):
+        out = self.relaunchProg(name, self.conf['programs'].get(name))
 
         return out
 
     def stop( self, name ):
-        out = "Fonction stop incomplete"
-
+        out = self.exitingProg(name, self.conf['programs'].get(name))
+        self.conf['programs'].get(name)['process'].terminate
         return out
 
     def info( self, name ):
@@ -142,7 +181,7 @@ class _TaskMaster:
                             self.relaunchProg(key, value)
                             # proX.append((datetime, psutil.Popen(value['cmd'].split())))
                         else:
-                            self.exitingProg(key, value, returnValue)
+                            self.exitingProg(key, value)
                     elif value['autorestart'] == 'never':
                         continue
 
@@ -156,11 +195,15 @@ class _TaskMaster:
                 if value['autostart'] == True:
                     self.launchProg(key, value)
 
-    def exitingProg( self, progName, progConf, returnValue):
+    def exitingProg( self, progName, progConf):
         """lance les processus de progName avec la configuration dans progConf"""
         # if self.args.verbose:
         if self.conf["args"].verbose:
             print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
+        try :
+            self.conf['programs'].get(progName)['process'].terminate()
+        except psutil.NoSuchProcess:
+            print "Plus de process"
         # if 'umask' in progConf:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)
@@ -172,6 +215,8 @@ class _TaskMaster:
         #     print "UMSK SECOND"
         #     print oldMask
         #     os.umask(oldMask)
+        out = "J'ai stoppe " + progName
+        return out
 
     def relaunchProg( self, progName, progConf):
         """lance les processus de progName avec la configuration dans progConf"""
@@ -205,7 +250,9 @@ class _TaskMaster:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)
         #     oldMask = os.umask(progConf['umask'])
-        progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
+        p = psutil.Popen(progConf['cmd'].split())
+        self.conf['programs'].get(progName)['process'] = p        
+        progConf['proX'].append((datetime, p))
         if self.conf["args"].verbose:
         # if self.args.verbose:
             print "pid : " + str(progConf['proX'][0][1].pid)
@@ -213,3 +260,5 @@ class _TaskMaster:
         #     print "UMSK SECOND"
         #     print oldMask
         #     os.umask(oldMask)
+        outn = "Lancement du programme " + progName + " effectue..."
+        return outn

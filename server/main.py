@@ -18,6 +18,7 @@ from socket import error as socket_error
 from signal import SIGTERM
 from exit import Scolors
 
+
 UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 PID_FILE = "/tmp/taskmaster.pid"
 CONF_FILE = "config.yaml"

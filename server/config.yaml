@@ -56,3 +56,22 @@ programs:
             ANSWER: 42
         workingdir: /tmp
         umask: 777
+    testwhile:
+        cmd: "/nfs/zfs-student-4/users/2013_paris/tdeniset/projets/python/taskmaster/tasky/test/testwhile"
+        numprocs: 1
+        autostart: true #
+        autorestart: never # always unexpected never
+        exitcodes:
+            - 0
+            - 2
+        starttime: 5
+        startretries: 3
+        stopsignal: TERM
+        killtime: 10
+        stdout: /tmp/test.log
+        stderr: /tmp/test.error.log
+        env:
+            STARTED_BY: taskmaster
+            ANSWER: 42
+        workingdir: /tmp
+        umask: 022

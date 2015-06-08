@@ -117,7 +117,7 @@ def taskMasterStart( conf ):
     if conf["args"].daemon:
         daemonize()
     taskMaster = _TaskMaster(conf)
-    taskMaster.runTM()
+    taskMaster.runTaskMaster()
 
 def taskMasterRestart( args ):
     """Restart the taskmaster"""

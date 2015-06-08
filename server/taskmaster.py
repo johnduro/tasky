@@ -3,7 +3,7 @@ import argparse
 import subprocess
 import sys
 import psutil
-import datetime
+from datetime import datetime # a voir !
 import time
 import os, os.path #path pour remove de tmp
 import readline, re, socket
@@ -13,8 +13,15 @@ import pprint
 
 from exit import exiting, Scolors
 from subprocess import call
+
 #SIMILI MACROS
 UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
+
+LAUNCHED = 0
+RUNNING = 1
+STOPPING = 2
+EXITED = 3
+FAILED = 4
 
 class _TaskMaster:
     """class for program management"""
@@ -38,7 +45,7 @@ class _TaskMaster:
         #become a server socket
         self.serversocket.listen(5)
 
-    def runTM( self ):
+    def runTaskMaster( self ):
         self.initFirstLaunch()
         self.makeLoop()
 
@@ -68,9 +75,9 @@ class _TaskMaster:
                 self.managePrograms(self.conf['programs'])
 
                 for (key, prog) in self.conf['programs'].items():
-                    if prog['process'].poll() != None:
+                    if prog['process'].poll() != None: #salope
                         print key + " TERMINATED with ret code : "
-                        print prog['process'].returncode
+                        print prog['process'].returncode #salope
                         print "\n"
                     else:
                         print key + " launched..."
@@ -160,7 +167,7 @@ class _TaskMaster:
 
     def stop( self, name ):
         out = self.exitingProg(name, self.conf['programs'].get(name))
-        self.conf['programs'].get(name)['process'].terminate
+        self.conf['programs'].get(name)['process'].terminate #salope
         return out
 
     def info( self, name ):
@@ -186,23 +193,15 @@ class _TaskMaster:
                     elif value['autorestart'] == 'never':
                         continue
 
-    def get_env(self, progConf):
-        env = os.environ.copy()
-        # for key in os.environ.keys():
-        #     env[key] = str(os.environ[key])
-        if 'env' in progConf.keys():
-            for l in progConf['env']:
-                env[l] = str(progConf['env'][l])
-            print env
-        return env
-
     def initFirstLaunch( self ):
         """lance tous les programs contenus dans self.conf['programs']"""
         if not 'programs' in self.conf:
             raise NameError("No 'programs' in configuration")
         else:
             for (key, value) in self.conf['programs'].items():
-                value['proX'] = []
+                print "INIT FIRST LAUNCH : " + key + "< stap"
+                value['proX'] = [] #salope
+                value['processes'] = []
                 if value['autostart'] == True:
                     self.launchProg(key, value)
 
@@ -212,7 +211,7 @@ class _TaskMaster:
         if self.conf["args"].verbose:
             print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
         try :
-            self.conf['programs'].get(progName)['process'].terminate()
+            self.conf['programs'].get(progName)['process'].terminate() #salope
         except psutil.NoSuchProcess:
             print "Plus de process"
         # if 'umask' in progConf:
@@ -240,8 +239,13 @@ class _TaskMaster:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)
         #     oldMask = os.umask(progConf['umask'])
+
+
+        # MODIFIER BOUGER le POPEN dans launchProg
         progConf['proX'] = []
         progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
+
+
         if self.conf["args"].verbose:
         # if self.args.verbose:
             print "pid : " + str(progConf['proX'][0][1].pid)
@@ -251,26 +255,79 @@ class _TaskMaster:
         #     print oldMask
         #     os.umask(oldMask)
 
+    def getEnv( self, progConf ):
+        env = os.environ.copy()
+        if 'env' in progConf.keys():
+            for lines in progConf['env']:
+                env[lines] = str(progConf['env'][lines])
+        return env
 
-    def launchProg( self, progName, progConf):
+    def getErrAndOut( self, progConf ):
+        errRet = None
+        outRet = None
+        if "stderr" in progConf:
+            errRet = open(progConf['stderr'], "a+")
+        if "stdout" in progConf:
+            outRet = open(progConf['stdout'], "a+")
+        return (errRet, outRet)
+
+    def getWorkingDir( self, progConf ):
+        if 'workingdir' in progConf:
+            workingDir = progConf['workingdir']
+        else:
+            workingDir = None
+        return workingDir
+
+
+    def launchProg( self, progName, progConf ):
         """lance les processus de progName avec la configuration dans progConf"""
-        if self.conf["args"].verbose:
+        # REMETTRE !!!!!!!
+        # if self.conf["args"].verbose:
+        print "Launching process : " + progName # A SUPPRIMER
+
+        verbose = "Launching process : " + progName + "\n"
+        env = self.getEnv(progConf)
+        (errProg, outProg) = self.getErrAndOut(progConf)
+        workingDir = self.getWorkingDir(progConf)
+
+        if 'umask' in progConf:
+            print "UMSK FIRST"
+            print "HERE " + str(progConf['umask'])
+            # print int(progConf['umask'], 8)
+            # oldMask = os.umask(int(progConf['umask'], 8))
+            oldMask = os.umask(progConf['umask'])
+            # oldMask = os.umask(0777 - progConf['umask'])
+
+        for idx in range(progConf['numprocs']):
+            print "NUMPROCS OF " + progName + " : " + str(idx)
+            proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, cwd=workingDir)
+            date = datetime
+            progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED})
+            verbose += "pid : " + str(proc.pid) + date.strftime(", started at %H:%M:%S %a, %d %b %Y") + "\n"
+
+
+        # p = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, cwd=workingDir)
+        # self.conf['programs'].get(progName)['process'] = p #salope
+        # progConf['proX'].append((datetime, p, LAUNCHED))
+        # if self.conf["args"].verbose:
         # if self.args.verbose:
-            print "Launching process : " + progName
-        # if 'umask' in progConf:
-        #     print "UMSK FIRST"
-        #     print int(str(progConf['umask']), 8)
-        #     oldMask = os.umask(progConf['umask'])
-        env = self.get_env(progConf)
-        p = psutil.Popen(progConf['cmd'].split(), env=dict(env))
-        self.conf['programs'].get(progName)['process'] = p        
-        progConf['proX'].append((datetime, p))
-        if self.conf["args"].verbose:
-        # if self.args.verbose:
-            print "pid : " + str(progConf['proX'][0][1].pid)
-        # if 'umask' in progConf:
-        #     print "UMSK SECOND"
-        #     print oldMask
-        #     os.umask(oldMask)
+            # print "pid : " + str(progConf['proX'][0][1].pid)
+        # ret = "Launching process : " + progName
+        print verbose
+
+
+        if 'umask' in progConf:
+            print "UMSK SECOND"
+            print "OLDMASK: " + str(oldMask)
+            os.umask(oldMask)
+            # os.umask(0777 - oldMask)
+
+
         outn = "Lancement du programme " + progName + " effectue..."
         return outn
+
+
+#verifications a faire apres le parsing :
+# verifier la presence de numprocs ou le mettre a 1
+# verifier la presence de cmd sinon raise une exception
+

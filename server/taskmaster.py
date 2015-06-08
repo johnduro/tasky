@@ -9,6 +9,7 @@ import os, os.path #path pour remove de tmp
 import readline, re, socket
 import pickle
 import select
+import pprint
 
 from exit import exiting, Scolors
 from subprocess import call
@@ -185,6 +186,16 @@ class _TaskMaster:
                     elif value['autorestart'] == 'never':
                         continue
 
+    def get_env(self, progConf):
+        env = os.environ.copy()
+        # for key in os.environ.keys():
+        #     env[key] = str(os.environ[key])
+        if 'env' in progConf.keys():
+            for l in progConf['env']:
+                env[l] = str(progConf['env'][l])
+            print env
+        return env
+
     def initFirstLaunch( self ):
         """lance tous les programs contenus dans self.conf['programs']"""
         if not 'programs' in self.conf:
@@ -219,7 +230,7 @@ class _TaskMaster:
         return out
 
     def relaunchProg( self, progName, progConf):
-        """lance les processus de progName avec la configuration dans progConf"""
+        """relance les processus de progName avec la configuration dans progConf"""
         progConf['startretries'] -= 1
         if self.conf["args"].verbose:
         # if self.args.verbose:
@@ -250,7 +261,8 @@ class _TaskMaster:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)
         #     oldMask = os.umask(progConf['umask'])
-        p = psutil.Popen(progConf['cmd'].split())
+        env = self.get_env(progConf)
+        p = psutil.Popen(progConf['cmd'].split(), env=dict(env))
         self.conf['programs'].get(progName)['process'] = p        
         progConf['proX'].append((datetime, p))
         if self.conf["args"].verbose:

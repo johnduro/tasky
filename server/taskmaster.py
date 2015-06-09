@@ -36,6 +36,13 @@ class _TaskMaster:
         # self.args = args
         self.initConn()
         self.initLogFile()
+        self.initSignals()
+
+    def initSignals( self ):
+        self.nameToSignals = {}
+        for n in dir(signal):
+            if n.startswith('SIG') and not n.startswith('SIG_'):
+                self.nameToSignals[n] = getattr(signal, n)
 
     def initLogFile( self ):
         self.logFile = None
@@ -94,7 +101,6 @@ class _TaskMaster:
                 self.serverListen()
                 # self.managePrograms(self.conf['programs'])
                 self.managePrograms()
-
                 # for (key, prog) in self.conf['programs'].items():
                 #     if prog['process'].poll() != None: #salope
                 #         print key + " TERMINATED with ret code : "
@@ -127,8 +133,8 @@ class _TaskMaster:
             return self.listProg()
         elif (re.match("shutdown", instruct)):
             return self.shutdown()
-        elif (re.match("list", instruct)):
-            return self.listProg()
+        # elif (re.match("list", instruct)):
+        #     return self.listProg()
         elif (re.match("start_all", instruct)):
             return self.startAll()
         elif (re.match("stop_all", instruct)):
@@ -145,25 +151,46 @@ class _TaskMaster:
             return self.getConfig()
         return "Instruction doesn't exist\n"
 
-    def listProg( self ):
-        out = ""
+    def listProg( self ): #Liste les programmes et leur status, liste les PIDS des process (non ?) en meme temps et voila ##FAIT##
+        # progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED, 'retries' : 0, 'stoptime' : None})
+        ret = str(len(self.conf['programs'])) + " programs being monitored :\n"
         for (key, value) in self.conf['programs'].items():
-            out += key + ":"
-            params = "\n"
-            for (k, val) in value.items():
-                params += "\t" + str(k) + "\t" + str(val) + "\n"
-            out += params
-        return out
+            failedProc = 0
+            ret += "\t- " + key + " :\n"
+            if 'processes' in value and len(value['processes']) > 0:
+                for process in value['processes']:
+                    if process['status'] is FAILED:
+                        failedProc += 1
+                        continue
+                    ret += "\t\t " + process['status'] + "\t"
+                    if (process['status'] is RUNNING or process['status'] is LAUNCHED):
+                        ret += "pid " + str(process['process'][1].pid) + process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
+                    ret += "\n"
+            if failedProc > 0:
+                ret += "\t\t" + str(failedProc) + " failed process\n"
+        if self.conf["args"].verbose:
+            print ret
+        return ret
+            # verbose += "pid : " + str(proc.pid) + date.strftime(", started at %H:%M:%S %a, %d %b %Y") + "\n"
+        # out = ""
+        # for (key, value) in self.conf['programs'].items():
+        #     out += key + ":"
+        #     params = "\n"
+        #     for (k, val) in value.items():
+        #         params += "\t" + str(k) + "\t" + str(val) + "\n"
+        #     out += params
+        # return out
 
-    def shutdown( self ):
+    def shutdown( self ): #Exit le serveur proprement apres avoir stoppe le reste
         ret = "Shutting down"
         self.clientsocket.send(str(len(ret)))
         if (len(self.clientsocket.recv(8))):
             self.clientsocket.send(ret)
+        self.stopAll()
         exiting()
         return ""
 
-    def startAll( self ):
+    def startAll( self ): #Starte tous les programmes # A REFAIRE
         out = ""
         for (key, value) in self.conf['programs'].items():
             out += self.launchProg(key, value) + "\n"
@@ -171,28 +198,30 @@ class _TaskMaster:
         return out
 
     def stopAll( self ):
-        out = ""
+        ret = "Stopping all programs :\n"
         for (key, value) in self.conf['programs'].items():
-            out += self.exitingProg(key, value) + "\n"
+            ret += self.exitingProg(key, value)
+        return ret
 
-        return out
-
-    def start( self, name ):
+    def start( self, name ): # A REFAIRE il faut verifier ce qui tourne actuellement
         out = self.launchProg(name, self.conf['programs'].get(name))
         return out
 
-    def restart( self, name ):
+    def restart( self, name ): # faire stop puis start
         out = self.relaunchProg(name, self.conf['programs'].get(name))
 
         return out
 
     def stop( self, name ):
-        out = self.exitingProg(name, self.conf['programs'].get(name))
-        self.conf['programs'].get(name)['process'].terminate #salope
-        return out
+        ret = ""
+        if name in self.conf['programs']:
+            ret += self.exitingProg(name, self.conf['programs'][name])
+        else:
+            ret += "Wrong program name, type 'list' to get all programs actually being monitored by Taskmaster\n"
+        return ret
 
     def info( self, name ):
-        out = "Fonction info incomplete"
+        out = "Fonction info incomplete" #ON PRINT QUOI ?: infos detaille sur le prog : tous les processes plus certaines parties de la conf
 
         return out
 
@@ -211,7 +240,7 @@ class _TaskMaster:
                         if process['status'] is LAUNCHED:
                             dateNow = datetime.now()
                             dateDiff = (dateNow - process['process'][0]).total_seconds()
-                            print "DATEDIFF --> " + str(dateDiff)
+                            # print "DATEDIFF --> " + str(dateDiff)
                             if dateDiff > value['starttime']:
                                 process['status'] = RUNNING
                         elif process['status'] is STOPPING:
@@ -247,31 +276,50 @@ class _TaskMaster:
                     self.launchProg(key, value, value['startretries'])
 
     def exitingProg( self, progName, progConf):
-        """lance les processus de progName avec la configuration dans progConf"""
+        """quitte les processus de progName"""
+        verbose = "Stopping process : " + progName + "\n"
+        if 'processes' in progConf and len(progConf['processes']) > 0:
+            for process in progConf['processes']
+                if process['process'][1].poll() is None
+                    verbose += "\t- process with pid " + str(process['process'][1].pid) + " is being sent SIG" + progConf['stopsignal'] + "\n"
+                    process['process'][1].send_signal(self.nameToSignals["SIG" + progConf['stopsignal']])
+                    process['status'] = STOPPING
+        else:
+            verbose += progName + " haven't been started, no processes to stop\n"
+
         if self.conf["args"].verbose:
-            print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
-        try :
-            self.conf['programs'].get(progName)['process'].terminate() #salope
-        except psutil.NoSuchProcess:
-            print "Plus de process"
+            print ret
+
+        return ret
+
+
+
+
+
+        # if self.conf["args"].verbose:
+        #     print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
+        # try :
+        #     self.conf['programs'].get(progName)['process'].terminate() #salope
+        # except psutil.NoSuchProcess:
+        #     print "Plus de process"
         # if 'umask' in progConf:
         #     print "UMSK FIRST"
         #     print int(str(progConf['umask']), 8)
         #     oldMask = os.umask(progConf['umask'])
 
-        progConf['proX'] = []
+        # progConf['proX'] = []
         #self.launchProg(progName, progConf)
         # if 'umask' in progConf:
         #     print "UMSK SECOND"
         #     print oldMask
         #     os.umask(oldMask)
-        out = "J'ai stoppe " + progName
-        return out
+        # out = "J'ai stoppe " + progName
+        # return out
 
     def relaunchProg( self, progName, progConf, process ):
         """relance les processus de progName avec la configuration dans progConf"""
         if process['retries'] > 0:
-            verbose = "Program " + progName + "is being relaunch\n"
+            verbose = "Program " + progName + " is being relaunched\n"
             if self.conf["args"].verbose:
                 print verbose
             if self.logFile is not None:
@@ -285,30 +333,6 @@ class _TaskMaster:
                 print verbose
             if self.logFile is not None:
                 self.logFile.write(verbose)
-        # progConf['startretries'] -= 1 #salope
-        # if self.conf["args"].verbose:
-        # # if self.args.verbose:
-        #     print "ReLaunching process : " + progName
-        #     print "Remaining retries : " + str(progConf['startretries']) #salope
-        # # if 'umask' in progConf:
-        # #     print "UMSK FIRST"
-        # #     print int(str(progConf['umask']), 8)
-        # #     oldMask = os.umask(progConf['umask'])
-
-
-        # # MODIFIER BOUGER le POPEN dans launchProg
-        # progConf['proX'] = []
-        # progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
-
-
-        # if self.conf["args"].verbose:
-        # if self.args.verbose:
-            # print "pid : " + str(progConf['proX'][0][1].pid)
-        #self.launchProg(progName, progConf)
-        # if 'umask' in progConf:
-        #     print "UMSK SECOND"
-        #     print oldMask
-        #     os.umask(oldMask)
 
     def getEnv( self, progConf ):
         env = os.environ.copy()
@@ -385,6 +409,9 @@ class _TaskMaster:
 # verifier stoptime ou le mettre a 0
 # verifier startretries ou le mettre a 0
 # verifier exitCodes
+# rajouter une liste 'processes' dans les process au moment de la verification
+# verifier les signaux mis dans le fichier de config
+# verifier si il a un stopsignal sinon mettre sigterm ?
 
 
 # verifier les droits des fichiers de log

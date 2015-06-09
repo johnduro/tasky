@@ -3,25 +3,31 @@ import argparse
 import subprocess
 import sys
 import psutil
-from datetime import datetime # a voir !
 import time
 import os, os.path #path pour remove de tmp
 import readline, re, socket
 import pickle
 import select
 import pprint
+import signal
 
 from exit import exiting, Scolors
 from subprocess import call
+from datetime import datetime
 
 #SIMILI MACROS
 UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 
-LAUNCHED = 0
-RUNNING = 1
-STOPPING = 2
-EXITED = 3
-FAILED = 4
+LAUNCHED = "LAUNCHED"
+RUNNING = "RUNNING"
+STOPPING = "STOPPING"
+EXITED = "EXITED"
+FAILED = "FAILED"
+# LAUNCHED = 0
+# RUNNING = 1
+# STOPPING = 2
+# EXITED = 3
+# FAILED = 4
 
 class _TaskMaster:
     """class for program management"""
@@ -29,6 +35,18 @@ class _TaskMaster:
         self.conf = conf
         # self.args = args
         self.initConn()
+        self.initLogFile()
+
+    def initLogFile( self ):
+        self.logFile = None
+        if 'logfile' in self.conf:
+            if 'enabled' in self.conf['logfile']:
+                if self.conf['logfile']['enabled'] is True:
+                    if 'path' in self.conf['logfile']:
+                        self.logFile = open(self.conf['logfile']['path'], 'a+')
+                    else:
+                        self.logFile = open('taskmaster.log', 'a+')
+
 
     def initConn( self ):
         self.serversocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -44,43 +62,46 @@ class _TaskMaster:
 
         #become a server socket
         self.serversocket.listen(5)
+        self.read_list = [self.serversocket]
 
     def runTaskMaster( self ):
         self.initFirstLaunch()
         self.makeLoop()
 
+    def serverListen( self ):
+        readable, writable, errored = select.select(self.read_list, [], [], 1)
+        for s in readable:
+            if s is self.serversocket:
+                self.clientsocket, address = self.serversocket.accept()
+                self.read_list.append(self.clientsocket)
+            else:
+                buf = s.recv(2048)
+                if len(buf) > 0:
+                    print buf #salope
+                    ret = self.execInstruct(buf)
+                    self.clientsocket.send(str(len(ret)))
+                    if (len(self.clientsocket.recv(8))):
+                        self.clientsocket.send(ret)
+                    else:
+                        s.close()
+                        self.read_list.remove(s)
+
     def makeLoop( self ):
-        read_list = [self.serversocket]
         try:
             while (42):
-                readable, writable, errored = select.select(read_list, [], [], 1)
-                for s in readable:
-                    if s is self.serversocket:
-                        self.clientsocket, address = self.serversocket.accept()
-                        read_list.append(self.clientsocket)
-                    else:
-                        buf = s.recv(2048)
-                        if not 'programs' in self.conf:
-                            raise NameError("No 'programs' in configuration")
-                        elif len(buf) > 0:
-                            print buf
-                            ret = self.execInstruct(buf)
-                            self.clientsocket.send(str(len(ret)))
-                            if (len(self.clientsocket.recv(8))):
-                                self.clientsocket.send(ret)
-                        else:
-                            s.close()
-                            read_list.remove(s)
+                if not 'programs' in self.conf:
+                    raise NameError("No 'programs' in configuration")
+                self.serverListen()
+                # self.managePrograms(self.conf['programs'])
+                self.managePrograms()
 
-                self.managePrograms(self.conf['programs'])
-
-                for (key, prog) in self.conf['programs'].items():
-                    if prog['process'].poll() != None: #salope
-                        print key + " TERMINATED with ret code : "
-                        print prog['process'].returncode #salope
-                        print "\n"
-                    else:
-                        print key + " launched..."
+                # for (key, prog) in self.conf['programs'].items():
+                #     if prog['process'].poll() != None: #salope
+                #         print key + " TERMINATED with ret code : "
+                #         print prog['process'].returncode #salope
+                #         print "\n"
+                #     else:
+                #         print key + " launched..."
                     # (stdoutdata, stderrdata) = prog['process'].communicate()
                     # print prog['process'].returncode, stdoutdata
                 # (self.clientsocket, address) = self.serversocket.accept()
@@ -175,23 +196,46 @@ class _TaskMaster:
 
         return out
 
-    def managePrograms( self, programs ):
-        for (key, value) in programs.items():
-            #print key #p
-            for proX in value['proX']:
-                returnValue = proX[1].poll()
-                #print "POLL" #p
-                #print returnValue #p
-                #print proX[1].pid #p
-                if returnValue != None:
-                    if value['autorestart'] == 'always' or value['autorestart'] == 'unexpected':
-                        if value['startretries'] > 0 and returnValue not in value['exitcodes'] or value['autorestart'] == 'always':
-                            self.relaunchProg(key, value)
-                            # proX.append((datetime, psutil.Popen(value['cmd'].split())))
-                        else:
-                            self.exitingProg(key, value)
-                    elif value['autorestart'] == 'never':
+    # def managePrograms( self, programs ):
+    def managePrograms( self ):
+        for (key, value) in self.conf['programs'].items():
+            # progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED, 'retries' : 0, 'stoptime' : None})
+
+            if 'processes' in value and len(value['processes']) > 0:
+                for process in value['processes']:
+                    if process['status'] is FAILED or process['status'] is EXITED:
                         continue
+                    returnValue = process['process'][1].poll()
+                    # PROCESS IS RUNNING
+                    if returnValue is None:
+                        if process['status'] is LAUNCHED:
+                            dateNow = datetime.now()
+                            dateDiff = (dateNow - process['process'][0]).total_seconds()
+                            print "DATEDIFF --> " + str(dateDiff)
+                            if dateDiff > value['starttime']:
+                                process['status'] = RUNNING
+                        elif process['status'] is STOPPING:
+                            dateNow = datetime.now()
+                            dateDiff = (dateNow - process['stoptime']).total_seconds()
+                            if dateDiff > value['stoptime']:
+                                process['process'][1].send_signal(SIGKILL)
+                                process['status'] = FAILED
+                    # PROCESS IS NOT RUNNING
+                    else:
+                        if process['status'] is LAUNCHED:
+                            self.relaunchProg(key, value, process)
+                        if process['status'] is RUNNING:
+                            if value['autorestart'] == 'always' or (value['autorestart'] == 'unexpected' and returnValue not in value['exitcodes']):
+                                value['processes'].remove(process)
+                                self.launchProg(key, value, value['startretries'], 1)
+                            else:
+                                if returnValue not in value['exitcodes']:
+                                    process['status'] = FAILED
+                                else:
+                                    process['status'] = EXITED
+                        if process['status'] is STOPPING:
+                            process['status'] = EXITED
+
 
     def initFirstLaunch( self ):
         """lance tous les programs contenus dans self.conf['programs']"""
@@ -199,15 +243,11 @@ class _TaskMaster:
             raise NameError("No 'programs' in configuration")
         else:
             for (key, value) in self.conf['programs'].items():
-                print "INIT FIRST LAUNCH : " + key + "< stap"
-                value['proX'] = [] #salope
-                value['processes'] = []
                 if value['autostart'] == True:
-                    self.launchProg(key, value)
+                    self.launchProg(key, value, value['startretries'])
 
     def exitingProg( self, progName, progConf):
         """lance les processus de progName avec la configuration dans progConf"""
-        # if self.args.verbose:
         if self.conf["args"].verbose:
             print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
         try :
@@ -228,27 +268,42 @@ class _TaskMaster:
         out = "J'ai stoppe " + progName
         return out
 
-    def relaunchProg( self, progName, progConf):
+    def relaunchProg( self, progName, progConf, process ):
         """relance les processus de progName avec la configuration dans progConf"""
-        progConf['startretries'] -= 1
-        if self.conf["args"].verbose:
+        if process['retries'] > 0:
+            verbose = "Program " + progName + "is being relaunch\n"
+            if self.conf["args"].verbose:
+                print verbose
+            if self.logFile is not None:
+                self.logFile.write(verbose)
+            self.launchProg(progName, progConf, process['retries'] - 1, 1)
+            progConf['processes'].remove(process)
+        else:
+            process['status'] = FAILED
+            verbose = "Program " + progName + " has been relaunched too many times\n"
+            if self.conf["args"].verbose:
+                print verbose
+            if self.logFile is not None:
+                self.logFile.write(verbose)
+        # progConf['startretries'] -= 1 #salope
+        # if self.conf["args"].verbose:
+        # # if self.args.verbose:
+        #     print "ReLaunching process : " + progName
+        #     print "Remaining retries : " + str(progConf['startretries']) #salope
+        # # if 'umask' in progConf:
+        # #     print "UMSK FIRST"
+        # #     print int(str(progConf['umask']), 8)
+        # #     oldMask = os.umask(progConf['umask'])
+
+
+        # # MODIFIER BOUGER le POPEN dans launchProg
+        # progConf['proX'] = []
+        # progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
+
+
+        # if self.conf["args"].verbose:
         # if self.args.verbose:
-            print "ReLaunching process : " + progName
-            print "Remaining retries : " + str(progConf['startretries'])
-        # if 'umask' in progConf:
-        #     print "UMSK FIRST"
-        #     print int(str(progConf['umask']), 8)
-        #     oldMask = os.umask(progConf['umask'])
-
-
-        # MODIFIER BOUGER le POPEN dans launchProg
-        progConf['proX'] = []
-        progConf['proX'].append((datetime, psutil.Popen(progConf['cmd'].split())))
-
-
-        if self.conf["args"].verbose:
-        # if self.args.verbose:
-            print "pid : " + str(progConf['proX'][0][1].pid)
+            # print "pid : " + str(progConf['proX'][0][1].pid)
         #self.launchProg(progName, progConf)
         # if 'umask' in progConf:
         #     print "UMSK SECOND"
@@ -279,11 +334,11 @@ class _TaskMaster:
         return workingDir
 
 
-    def launchProg( self, progName, progConf ):
+    def launchProg( self, progName, progConf, nbRetries, nbProcess = None ):
         """lance les processus de progName avec la configuration dans progConf"""
-        # REMETTRE !!!!!!!
-        # if self.conf["args"].verbose:
-        print "Launching process : " + progName # A SUPPRIMER
+
+        if 'processes' not in progConf:
+            progConf['processes'] = []
 
         verbose = "Launching process : " + progName + "\n"
         env = self.getEnv(progConf)
@@ -291,20 +346,17 @@ class _TaskMaster:
         workingDir = self.getWorkingDir(progConf)
 
         if 'umask' in progConf:
-            print "UMSK FIRST"
-            print "HERE " + str(progConf['umask'])
-            # print int(progConf['umask'], 8)
-            # oldMask = os.umask(int(progConf['umask'], 8))
             oldMask = os.umask(progConf['umask'])
-            # oldMask = os.umask(0777 - progConf['umask'])
 
         for idx in range(progConf['numprocs']):
+            if nbProcess != None:
+                if idx >= nbProcess:
+                    break
             print "NUMPROCS OF " + progName + " : " + str(idx)
             proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, cwd=workingDir)
-            date = datetime
-            progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED})
+            date = datetime.now()
+            progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED, 'retries' : nbRetries, 'stoptime' : None})
             verbose += "pid : " + str(proc.pid) + date.strftime(", started at %H:%M:%S %a, %d %b %Y") + "\n"
-
 
         # p = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, cwd=workingDir)
         # self.conf['programs'].get(progName)['process'] = p #salope
@@ -313,21 +365,27 @@ class _TaskMaster:
         # if self.args.verbose:
             # print "pid : " + str(progConf['proX'][0][1].pid)
         # ret = "Launching process : " + progName
-        print verbose
+        if self.conf["args"].verbose:
+            print verbose
 
+        if self.logFile is not None:
+            self.logFile.write(verbose)
 
         if 'umask' in progConf:
-            print "UMSK SECOND"
-            print "OLDMASK: " + str(oldMask)
             os.umask(oldMask)
-            # os.umask(0777 - oldMask)
 
-
-        outn = "Lancement du programme " + progName + " effectue..."
-        return outn
+        # outn = "Lancement du programme " + progName + " effectue..."
+        return verbose
 
 
 #verifications a faire apres le parsing :
 # verifier la presence de numprocs ou le mettre a 1
 # verifier la presence de cmd sinon raise une exception
+# verifier starttime ou le mettre a 0
+# verifier stoptime ou le mettre a 0
+# verifier startretries ou le mettre a 0
+# verifier exitCodes
+
+
+# verifier les droits des fichiers de log
 

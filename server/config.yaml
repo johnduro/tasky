@@ -55,7 +55,7 @@ programs:
             STARTED_BY: taskmaster
             ANSWER: 42
         workingdir: /tmp
-        umask: 0000
+        umask: 000
     testwhile:
         # cmd: "../test/testwhile"
         cmd: "/home/czevak/documents/python.d/taskmaster.d/test/testwhile"
@@ -76,4 +76,6 @@ programs:
             ANSWER: 42
         workingdir: /tmp
         umask: 022
-
+logfile:
+    enabled: true
+    path: /tmp/tasky.log

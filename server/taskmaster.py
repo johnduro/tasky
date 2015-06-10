@@ -256,10 +256,10 @@ class _TaskMaster:
             else:
                 ret += "\t\t- no logging files\n"
             if 'env' in progConf and len(progConf['env']) > 0:
-                ret += "\tenvironnement variables :\n"
+                ret += "\tenvironment variables :\n"
                 for (key, value) in progConf['env'].items():
                     "\t\t- " + str(key) + " = " + str(value) + "\n"
-            ret += "\tprocesses :\n"
+            ret += "\tprocesses ("+ str(progConf['numprocs']) +" max process(es) running) :\n"
             # ret += "pid " + str(process['process'][1].pid) + process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
             if 'processes' in progConf:
                 for process in progConf['processes']:
@@ -426,13 +426,13 @@ class _TaskMaster:
                 if process['status'] is RUNNING or process['status'] is LAUNCHED:
                     nbProcRunning += 1
             nbProcToRun -= nbProcRunning
-            if nbPRocToRun <= 0:
+            if nbProcToRun <= 0:
                 verbose = "Couldn't start " + progName + ", it's already running\n"
                 if self.conf["args"].verbose:
                     print verbose
                 return verbose
-        self.launchProg(progName, progConf, progConf['startretries'], nbProcToRun)
-
+        verbose = self.launchProg(progName, progConf, progConf['startretries'], nbProcToRun)
+        return verbose
 
     def launchProg( self, progName, progConf, nbRetries, nbProcess = None ):
         """lance les processus de progName avec la configuration dans progConf"""
@@ -482,7 +482,7 @@ class _TaskMaster:
 
 #verifications a faire apres le parsing :
 # verifier la presence de numprocs ou le mettre a 1
-# verifier la presence de cmd sinon raise une exception
+# verifier la presence de cmd sinon raise une exception ERROR IMPORTANTE A REGLER
 # verifier starttime ou le mettre a 0
 # verifier stoptime ou le mettre a 0
 # verifier startretries ou le mettre a 0
@@ -492,7 +492,9 @@ class _TaskMaster:
 # verifier si il a un stopsignal sinon mettre sigterm ?
 # verifier autorestart et raise si absent
 
-# ERREUR en cas de commande pr lancer un fichier foireuse
+# ajout message lors du stop d un programme stoppe
+# probleme restart ?
+# ajout timeout cote client quand il ne recoit pas de reponse du serv
 # voir pour les retours, le \n de trop
 
 

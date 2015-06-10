@@ -23,6 +23,8 @@ RUNNING = "RUNNING"
 STOPPING = "STOPPING"
 EXITED = "EXITED"
 FAILED = "FAILED"
+
+PROGRAM_NOT_FOUND = " : wrong program name, type 'list' to get all programs actually being monitored by Taskmaster\n"
 # LAUNCHED = 0
 # RUNNING = 1
 # STOPPING = 2
@@ -187,15 +189,22 @@ class _TaskMaster:
         if (len(self.clientsocket.recv(8))):
             self.clientsocket.send(ret)
         self.stopAll()
+        print ret
         exiting()
-        return ""
+        return "" #obligatoire ?
 
+    # def launchProg( self, progName, progConf, nbRetries, nbProcess = None ):
     def startAll( self ): #Starte tous les programmes # A REFAIRE
-        out = ""
+        ret = "Starting all programs :\n"
         for (key, value) in self.conf['programs'].items():
-            out += self.launchProg(key, value) + "\n"
+            ret += startingProgram(key, value)
+        return ret
 
-        return out
+        # out = ""
+        # for (key, value) in self.conf['programs'].items():
+        #     out += self.launchProg(key, value) + "\n"
+
+        # return out
 
     def stopAll( self ):
         ret = "Stopping all programs :\n"
@@ -203,27 +212,80 @@ class _TaskMaster:
             ret += self.exitingProg(key, value)
         return ret
 
-    def start( self, name ): # A REFAIRE il faut verifier ce qui tourne actuellement
-        out = self.launchProg(name, self.conf['programs'].get(name))
-        return out
+    def start( self, name ): # FAIT
+        ret = ""
+        if name in self.conf['programs']:
+            ret += self.startingProgram(name, self.conf['programs'][name])
+        else:
+            ret += name + PROGRAM_NOT_FOUND
+        return ret
 
-    def restart( self, name ): # faire stop puis start
-        out = self.relaunchProg(name, self.conf['programs'].get(name))
+    def restart( self, name ): # FAIT
+        ret = ""
+        if name in self.conf['programs']:
+            ret += self.exitingProg(name, self.conf['programs'][name])
+            ret += self.startingProgram(name, self.conf['programs'][name])
+        else:
+            ret += name + PROGRAM_NOT_FOUND
+        return ret
 
-        return out
-
-    def stop( self, name ):
+    def stop( self, name ): #FAIT
         ret = ""
         if name in self.conf['programs']:
             ret += self.exitingProg(name, self.conf['programs'][name])
         else:
-            ret += "Wrong program name, type 'list' to get all programs actually being monitored by Taskmaster\n"
+            ret += name + PROGRAM_NOT_FOUND
         return ret
 
     def info( self, name ):
-        out = "Fonction info incomplete" #ON PRINT QUOI ?: infos detaille sur le prog : tous les processes plus certaines parties de la conf
+        ret = ""
+        if name in self.conf['programs']:
+            progConf = self.conf['programs'][name]
+            ret += name + " infos :\n"
+            ret += "\tlaunching command: " + progConf['cmd'] + "\n"
+            if 'workingdir' in progConf:
+                "\tworking directory : " + progConf['workingdir'] + "\n"
+            ret += "\tlogging files:\n"
+            if 'stdout' in progConf or 'stdin' in progConf or 'stderr' in progConf:
+                if 'stdout' in progConf:
+                    ret += "\t\t- stdout : " + progConf['stdout'] + "\n"
+                if 'stderr' in progConf:
+                    ret += "\t\t- stderr : " + progConf['stderr'] + "\n"
+                if 'stdin' in progConf:
+                    ret += "\t\t- stdin : " + progConf['stdin'] + "\n"
+            else:
+                ret += "\t\t- no logging files\n"
+            if 'env' in progConf and len(progConf['env']) > 0:
+                ret += "\tenvironnement variables :\n"
+                for (key, value) in progConf['env'].items():
+                    "\t\t- " + key + " = " + value + "\n"
+            ret += "\tprocesses :\n"
+            # ret += "pid " + str(process['process'][1].pid) + process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
+            if 'processes' in progConf:
+                for process in progConf['processes']:
+                    ret += "\t\t- " + process['status'] + "\t"
+                    if process['status'] is RUNNING or process['status'] is LAUNCHED:
+                        ret += "pid " + str(process['process'][1].pid) + process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
+                    elif process['status'] is STOPPING or process['status'] is EXITED:
+                        if process['stoptime'] not None:
+                            ret += process['stoptime'].strftime("stopped at %H:%M:%S %a, %d %b %Y")
+                        else:
+                            ret += process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
+                    elif process['status'] is FAILED:
+                        ret += "exited with return code : " + str(process['process'][1].poll())
+                        if process['stoptime'] not None:
+                            ret += process['stoptime'].strftime("stopped at %H:%M:%S %a, %d %b %Y")
+                        else:
+                            ret += process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
+                    ret += "\n"
+            else:
+                ret += "\t\t- no processes actually running\n"
+        else:
+            ret += name + PROGRAM_NOT_FOUND
+        return ret
+        # out = "Fonction info incomplete" #ON PRINT QUOI ?: infos detaille sur le prog : tous les processes plus certaines parties de la conf
 
-        return out
+        # return out
 
     # def managePrograms( self, programs ):
     def managePrograms( self ):
@@ -237,14 +299,14 @@ class _TaskMaster:
                     returnValue = process['process'][1].poll()
                     # PROCESS IS RUNNING
                     if returnValue is None:
+                        dateNow = datetime.now()
                         if process['status'] is LAUNCHED:
-                            dateNow = datetime.now()
                             dateDiff = (dateNow - process['process'][0]).total_seconds()
                             # print "DATEDIFF --> " + str(dateDiff)
                             if dateDiff > value['starttime']:
                                 process['status'] = RUNNING
                         elif process['status'] is STOPPING:
-                            dateNow = datetime.now()
+                            # dateNow = datetime.now()
                             dateDiff = (dateNow - process['stoptime']).total_seconds()
                             if dateDiff > value['stoptime']:
                                 process['process'][1].send_signal(SIGKILL)
@@ -284,6 +346,7 @@ class _TaskMaster:
                     verbose += "\t- process with pid " + str(process['process'][1].pid) + " is being sent SIG" + progConf['stopsignal'] + "\n"
                     process['process'][1].send_signal(self.nameToSignals["SIG" + progConf['stopsignal']])
                     process['status'] = STOPPING
+                    process['stoptime'] = datetime.now()
         else:
             verbose += progName + " haven't been started, no processes to stop\n"
 
@@ -341,14 +404,17 @@ class _TaskMaster:
                 env[lines] = str(progConf['env'][lines])
         return env
 
-    def getErrAndOut( self, progConf ):
+    def getInErrAndOut( self, progConf ):
         errRet = None
         outRet = None
+        inRet = None
         if "stderr" in progConf:
             errRet = open(progConf['stderr'], "a+")
         if "stdout" in progConf:
             outRet = open(progConf['stdout'], "a+")
-        return (errRet, outRet)
+        if "stdin" in progConf:
+            inRet = open(progConf['stdin'], "a+")
+        return (errRet, outRet, inRet)
 
     def getWorkingDir( self, progConf ):
         if 'workingdir' in progConf:
@@ -356,6 +422,21 @@ class _TaskMaster:
         else:
             workingDir = None
         return workingDir
+
+    def startingProgram( self, progName, progConf )
+        nbProcToRun = progConf['numprocs']
+        if 'processes' in progConf:
+            nbProcRunning = 0
+            for process in progConf['processes']:
+                if process['status'] is RUNNING or if process['status'] is LAUNCHED:
+                    nbProcRunning += 1
+            nbProcToRun -= nbProcRunning
+            if nbPRocToRun <= 0:
+                verbose = "Couldn't start " + progName + ", it's already running\n"
+                if self.conf["args"].verbose
+                    print verbose
+                return verbose
+        self.launchProg(progName, progConf, progConf['startretries'], nbProcToRun)
 
 
     def launchProg( self, progName, progConf, nbRetries, nbProcess = None ):
@@ -366,7 +447,7 @@ class _TaskMaster:
 
         verbose = "Launching process : " + progName + "\n"
         env = self.getEnv(progConf)
-        (errProg, outProg) = self.getErrAndOut(progConf)
+        (errProg, outProg, inProg) = self.getErrAndOut(progConf)
         workingDir = self.getWorkingDir(progConf)
 
         if 'umask' in progConf:
@@ -377,7 +458,7 @@ class _TaskMaster:
                 if idx >= nbProcess:
                     break
             print "NUMPROCS OF " + progName + " : " + str(idx)
-            proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, cwd=workingDir)
+            proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, stdin=inProg, cwd=workingDir)
             date = datetime.now()
             progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED, 'retries' : nbRetries, 'stoptime' : None})
             verbose += "pid : " + str(proc.pid) + date.strftime(", started at %H:%M:%S %a, %d %b %Y") + "\n"
@@ -412,7 +493,9 @@ class _TaskMaster:
 # rajouter une liste 'processes' dans les process au moment de la verification
 # verifier les signaux mis dans le fichier de config
 # verifier si il a un stopsignal sinon mettre sigterm ?
+# verifier autorestart et raise si absent
 
 
 # verifier les droits des fichiers de log
 
+# verifier que toutes les actions (sauf liste etc..) sont logges

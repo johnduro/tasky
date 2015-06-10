@@ -26,7 +26,7 @@ programs:
         exitcodes:
             - 0
             - 2
-        starttime: 5
+        starttime: 0
         startretries: 3
         stopsignal: TERM
         killtime: 10
@@ -57,8 +57,8 @@ programs:
         workingdir: /tmp
         umask: 000
     testwhile:
-        # cmd: "../test/testwhile"
-        cmd: "/home/czevak/documents/python.d/taskmaster.d/test/testwhile"
+        cmd: "/nfs/zfs-student-4/users/2013/mgarcin/projectsyear2/taskyfinal/test/testwhile"
+        # cmd: "/home/czevak/documents/python.d/taskmaster.d/test/testwhile"
         numprocs: 1
         autostart: true
         autorestart: never # always unexpected never

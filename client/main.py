@@ -49,11 +49,14 @@ def send_instruct(msg):
     clientsocket = init_conn(clientsocket)
     clientsocket.send(msg) #envoie instruction
     buf = clientsocket.recv(8)#recup length de la future reception
-    if(int(buf)):
-        clientsocket.send("OK") #envoie instruction
-        buf = clientsocket.recv(int(buf))
-    if len(buf) > 0:
-        print buf
+    if buf.isdigit():
+        if(int(buf)):
+            clientsocket.send("OK") #envoie instruction
+            buf = clientsocket.recv(int(buf))
+        if len(buf) > 0:
+            print buf
+    else:
+        print "ERROR SERVER"
 
 def check_instruction(instruction):
     """check si l'instruction entree est valide"""

@@ -197,7 +197,7 @@ class _TaskMaster:
     def startAll( self ): #Starte tous les programmes # A REFAIRE
         ret = "Starting all programs :\n"
         for (key, value) in self.conf['programs'].items():
-            ret += startingProgram(key, value)
+            ret += self.startingProgram(key, value)
         return ret
 
         # out = ""
@@ -258,7 +258,7 @@ class _TaskMaster:
             if 'env' in progConf and len(progConf['env']) > 0:
                 ret += "\tenvironnement variables :\n"
                 for (key, value) in progConf['env'].items():
-                    "\t\t- " + key + " = " + value + "\n"
+                    "\t\t- " + str(key) + " = " + str(value) + "\n"
             ret += "\tprocesses :\n"
             # ret += "pid " + str(process['process'][1].pid) + process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
             if 'processes' in progConf:
@@ -267,13 +267,13 @@ class _TaskMaster:
                     if process['status'] is RUNNING or process['status'] is LAUNCHED:
                         ret += "pid " + str(process['process'][1].pid) + process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
                     elif process['status'] is STOPPING or process['status'] is EXITED:
-                        if process['stoptime'] not None:
+                        if process['stoptime'] is not None:
                             ret += process['stoptime'].strftime("stopped at %H:%M:%S %a, %d %b %Y")
                         else:
                             ret += process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
                     elif process['status'] is FAILED:
                         ret += "exited with return code : " + str(process['process'][1].poll())
-                        if process['stoptime'] not None:
+                        if process['stoptime'] is not None:
                             ret += process['stoptime'].strftime("stopped at %H:%M:%S %a, %d %b %Y")
                         else:
                             ret += process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
@@ -308,7 +308,7 @@ class _TaskMaster:
                         elif process['status'] is STOPPING:
                             # dateNow = datetime.now()
                             dateDiff = (dateNow - process['stoptime']).total_seconds()
-                            if dateDiff > value['stoptime']:
+                            if dateDiff > value['killtime']:
                                 process['process'][1].send_signal(SIGKILL)
                                 process['status'] = FAILED
                     # PROCESS IS NOT RUNNING
@@ -341,8 +341,8 @@ class _TaskMaster:
         """quitte les processus de progName"""
         verbose = "Stopping process : " + progName + "\n"
         if 'processes' in progConf and len(progConf['processes']) > 0:
-            for process in progConf['processes']
-                if process['process'][1].poll() is None
+            for process in progConf['processes']:
+                if process['process'][1].poll() is None:
                     verbose += "\t- process with pid " + str(process['process'][1].pid) + " is being sent SIG" + progConf['stopsignal'] + "\n"
                     process['process'][1].send_signal(self.nameToSignals["SIG" + progConf['stopsignal']])
                     process['status'] = STOPPING
@@ -351,13 +351,8 @@ class _TaskMaster:
             verbose += progName + " haven't been started, no processes to stop\n"
 
         if self.conf["args"].verbose:
-            print ret
-
-        return ret
-
-
-
-
+            print verbose
+        return verbose
 
         # if self.conf["args"].verbose:
         #     print "exiting " + progName + " pid : " + str(progConf['proX'][0][1].pid) + " with return code " + str(returnValue)
@@ -423,17 +418,17 @@ class _TaskMaster:
             workingDir = None
         return workingDir
 
-    def startingProgram( self, progName, progConf )
+    def startingProgram( self, progName, progConf ):
         nbProcToRun = progConf['numprocs']
         if 'processes' in progConf:
             nbProcRunning = 0
             for process in progConf['processes']:
-                if process['status'] is RUNNING or if process['status'] is LAUNCHED:
+                if process['status'] is RUNNING or process['status'] is LAUNCHED:
                     nbProcRunning += 1
             nbProcToRun -= nbProcRunning
             if nbPRocToRun <= 0:
                 verbose = "Couldn't start " + progName + ", it's already running\n"
-                if self.conf["args"].verbose
+                if self.conf["args"].verbose:
                     print verbose
                 return verbose
         self.launchProg(progName, progConf, progConf['startretries'], nbProcToRun)
@@ -447,7 +442,7 @@ class _TaskMaster:
 
         verbose = "Launching process : " + progName + "\n"
         env = self.getEnv(progConf)
-        (errProg, outProg, inProg) = self.getErrAndOut(progConf)
+        (errProg, outProg, inProg) = self.getInErrAndOut(progConf)
         workingDir = self.getWorkingDir(progConf)
 
         if 'umask' in progConf:
@@ -458,7 +453,9 @@ class _TaskMaster:
                 if idx >= nbProcess:
                     break
             print "NUMPROCS OF " + progName + " : " + str(idx)
+            # proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, cwd=workingDir)
             proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, stdin=inProg, cwd=workingDir)
+
             date = datetime.now()
             progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED, 'retries' : nbRetries, 'stoptime' : None})
             verbose += "pid : " + str(proc.pid) + date.strftime(", started at %H:%M:%S %a, %d %b %Y") + "\n"
@@ -494,6 +491,9 @@ class _TaskMaster:
 # verifier les signaux mis dans le fichier de config
 # verifier si il a un stopsignal sinon mettre sigterm ?
 # verifier autorestart et raise si absent
+
+# ERREUR en cas de commande pr lancer un fichier foireuse
+# voir pour les retours, le \n de trop
 
 
 # verifier les droits des fichiers de log

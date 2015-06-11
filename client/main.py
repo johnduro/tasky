@@ -17,7 +17,7 @@ UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 progs = {}
 
 #liste des instructions considerees valides
-valid = ["start ", "stop ", "restart ", "shutdown", "launch", "list", "info ", "start_all", "stop_all"]
+valid = ["start ", "stop ", "restart ", "shutdown", "launch", "list", "info ", "info", "start_all", "stop_all"]
 validQuery = ""
 for instruc in valid:
     if (len(validQuery)):
@@ -26,7 +26,6 @@ for instruc in valid:
         validQuery = "^"
     validQuery = validQuery + "(" + instruc + ")"
 print validQuery
-
 
 def init_conn(clientsocket):
     try:
@@ -58,14 +57,21 @@ def send_instruct(msg):
     else:
         print "ERROR SERVER"
 
+def help_instruction():
+    print "Liste des instructions valides :\n" + str(valid)
+
 def check_instruction(instruction):
     """check si l'instruction entree est valide"""
     if (not instruction):
         return 0
     elif (re.match("exit", instruction)):
         exit_query()
+    elif (re.match("help", instruction)):
+        help_instruction()
     elif (re.match(validQuery, instruction)):
         send_instruct(instruction)
+    else:
+        print Scolors.RED + "Not a valid instruction, type 'help' to get the list." + Scolors.ENDC
     return 0
 
 def main():

@@ -156,10 +156,11 @@ def taskMasterRestart( args ):
     taskMasterStart(conf)
 
 def getConfig( args, errorConfig=True ):
-    conf = {}
+    conf = {'configurationFiles' : []}
     if args.configuration_file:
         for _file in args.configuration_file:
             openConf = yaml.load(open(_file, 'r'))
+            conf['configurationFiles'].append(os.path.abspath(_file))
             for (key, value) in openConf.items():
                 if not key in conf:
                     conf[key] = value
@@ -168,6 +169,7 @@ def getConfig( args, errorConfig=True ):
     else:
         try:
             _file = open(CONF_FILE, 'r')
+            conf['configurationFiles'].append(os.path.abspath(CONF_FILE))
             conf = yaml.load(_file)
         except IOError:
             if errorConfig:

@@ -29,11 +29,119 @@ PROGRAM_NOT_FOUND = " : wrong program name, type 'list' to get all programs actu
 class _TaskMaster:
     """class for program management"""
     def __init__( self, conf ):
+        self.initSignals()
         self.conf = conf
+        # self.oldConf = None
+        self.checkConf(self.conf)
         # self.args = args
         self.initConn()
-        self.initLogFile()
-        self.initSignals()
+        self.initLogFile(self.conf)
+
+    def checkConf( self, conf ):
+        if not 'programs' in conf:
+            raise NameError("Config : No 'programs' in configuration")
+        if 'logfile' in conf and 'enabled' not in conf['logfile']:
+            raise NameError("Config : No 'enabled' in logfile")
+        for (key, value) in conf['programs']
+            if not 'cmd' in value:
+                raise NameError("Config: No 'cmd' in program: " + key)
+            if not 'autorestart' in value:
+                raise NameError("Config: No 'autorestart' in program: " + key)
+            if not 'numprocs' in value or value['numprocs'] <= 0:
+                value['numprocs'] = 1
+            if not 'starttime' in value:
+                value['starttime'] = 0
+            if not 'killtime' in value:
+                value['killtime'] = 0
+            if not 'startretries' in value:
+                value['startretries'] = 0
+            if not 'exitcodes' in value:
+                value['exitcodes'] = []
+            if not 'stopsignal' in value:
+                value['stopsignal'] = 'TERM'
+            if 'SIG' + value['stopsignal'] not in self.nameToSignals:
+                raise NameError("Config: Wrong signal for 'stopsignal' : " + value['stopsignal'])
+
+
+    def reloadLogFile( self, newConf):
+        if self.logFile is None and 'logfile' not in newConf:
+            return
+        elif self.logFile not None and 'logfile' not in newConf:
+            self.logFile.close()
+            self.logFile = None
+        elif self.logFile is None and 'logfile' in newConf:
+            self.initLogFile(newConf)
+        elif self.logFile not None and 'logfile' in newConf:
+            self.logFile.close()
+            if 'enabled' in newConf['logFile'] and newConf['logFile']['enabled'] is True:
+                self.initLogFile(newConf)
+
+    def checkEnv(newEnv, oldEnv):
+        shared_items = set(newEnv.items()) & set(oldEnv.items())
+        if shared_items.len() not oldEnv.len():
+            return False
+        return True
+
+    def reloadProcess( self, newConf ):
+        oldPrograms = self.conf['programs']
+        for (key, value) in newConf['programs']:
+            if key not in oldPrograms and value['autostart'] is True:
+                self.launchProg(key, value, value['startretries'])
+            elif key in self.conf['programs']:
+                if (value['cmd'] not oldPrograms[key]['cmd'] or
+                    ('stdout' in value and 'stdout' not in oldPrograms[key]) or
+                    ('stdout' not in value and 'stdout' in oldPrograms[key]) or
+                    ('stdout' in value and 'stdout' in oldPrograms[key] and value['stdout'] not oldPrograms[key]['stdout']) or
+                    ('stdin' in value and 'stdin' not in oldPrograms[key]) or
+                    ('stdin' not in value and 'stdin' in oldPrograms[key]) or
+                    ('stdin' in value and 'stdin' in oldPrograms[key] and value['stdin'] not oldPrograms[key]['stdin']) or
+                    ('stderr' in value and 'stderr' not in oldPrograms[key]) or
+                    ('stderr' not in value and 'stderr' in oldPrograms[key]) or
+                    ('stderr' in value and 'stderr' in oldPrograms[key] and value['stderr'] not oldPrograms[key]['stderr']) or
+                    ('workingdir' in value and 'workingdir' not in oldPrograms[key]) or
+                    ('workingdir' not in value and 'workingdir' in oldPrograms[key]) or
+                    (value['workingdir'] not oldPrograms[key]['workingdir']) or
+                    ('umask' in value and 'umask' not in oldPrograms[key]) or
+                    ('umask' not in value and 'umask' in oldPrograms[key]) or
+                    (value['umask'] not oldPrograms[key]['umask']) or
+                    ('env' in value and 'env' not in oldPrograms[key]) or
+                    ('env' not in value and 'env' in oldPrograms[key]) or
+                    ('env' in value and 'env' in oldPrograms[key] and self.checkEnv(value['env'], oldPrograms[key]['env']) not True)):
+                    self.exitingProg(key, self.conf['programs'][key])
+                    self.launchProg(key, value, value['startretries'])
+                elif value['numprocs'] not oldPrograms[key]['numprocs']:
+                    value['processes'] = oldPrograms[key]['processes']
+                    if value['numprocs'] > oldPrograms[key]['numprocs']:
+                        self.launchProg(key, value, value['startretries'], (value['numprocs'] - oldPrograms[key]['numprocs']))
+                    else: #remettre au dessus ? faire plus complexe ? oui...
+                        self.exitingProg(key, value)
+                        self.launchProg(key, value, value['startretries'])
+                else:
+                    value['processes'] = oldPrograms[key]['processes']
+        for (key, value) in oldPrograms.items():
+            if key not in newConf['programs']:
+                self.exitingProg(key, oldPrograms[key])
+
+
+    def reloadConfig( self ):
+        # LOADING NEW CONFIGURATION
+        newConf = {}
+        if 'configurationFiles' not in self.conf:
+            raise NameError("Config error no file(s) for configuration")
+        for _file in self.conf['configurationFiles']:
+            openConf = yaml.load(open(_file, 'r'))
+            for (key, value) in openConf.items():
+                if not key in conf:
+                    newConf[key] = value
+                else:
+                    newConf[key].update(value)
+        newConf['configurationFiles'] = self.conf['configurationFiles']
+        newConf['originalWD'] = self.conf['originalWD']
+        newConf['args'] = self.conf['args']
+        self.reloadLogFile(newConf)
+        self.checkConf(newConf)
+        self.reloadProcess(newConf)
+        self.conf = newConf
 
     def initSignals( self ):
         self.nameToSignals = {}
@@ -41,15 +149,24 @@ class _TaskMaster:
             if n.startswith('SIG') and not n.startswith('SIG_'):
                 self.nameToSignals[n] = getattr(signal, n)
 
-    def initLogFile( self ):
+    # def initLogFile( self ):
+    def initLogFile( self, conf ):
         self.logFile = None
-        if 'logfile' in self.conf:
-            if 'enabled' in self.conf['logfile']:
-                if self.conf['logfile']['enabled'] is True:
-                    if 'path' in self.conf['logfile']:
-                        self.logFile = open(self.conf['logfile']['path'], 'a+')
+        if 'logfile' in conf:
+            if 'enabled' in conf['logfile']:
+                if conf['logfile']['enabled'] is True:
+                    if 'path' in conf['logfile']:
+                        self.logFile = open(conf['logfile']['path'], 'a+')
                     else:
                         self.logFile = open('taskmaster.log', 'a+')
+        # self.logFile = None
+        # if 'logfile' in self.conf:
+        #     if 'enabled' in self.conf['logfile']:
+        #         if self.conf['logfile']['enabled'] is True:
+        #             if 'path' in self.conf['logfile']:
+        #                 self.logFile = open(self.conf['logfile']['path'], 'a+')
+        #             else:
+        #                 self.logFile = open('taskmaster.log', 'a+')
 
 
     def initConn( self ):
@@ -101,7 +218,7 @@ class _TaskMaster:
         except KeyboardInterrupt:
             exiting()
 
-    def getConfig( self ):
+    def getConfig( self ): # A REFAIRE !!!!!!!!!! ABSOLUMENT
         # print "NOOOOOO"
         sendConf = self.conf.copy()
 
@@ -255,7 +372,6 @@ class _TaskMaster:
             ret += name + PROGRAM_NOT_FOUND
         return ret
 
-    # def managePrograms( self, programs ):
     def managePrograms( self ):
         for (key, value) in self.conf['programs'].items():
             # progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED, 'retries' : 0, 'stoptime' : None})
@@ -302,6 +418,7 @@ class _TaskMaster:
 
     def initFirstLaunch( self ):
         """lance tous les programs contenus dans self.conf['programs']"""
+        # RETIRER ce check ?? le mettre ailleurs ?
         if not 'programs' in self.conf:
             raise NameError("No 'programs' in configuration")
         else:

@@ -10,6 +10,7 @@ import pickle
 import select
 import pprint
 import signal
+import errno
 
 from exit import exiting, Scolors
 from subprocess import call
@@ -31,18 +32,18 @@ class _TaskMaster:
     def __init__( self, conf ):
         self.initSignals()
         self.conf = conf
-        # self.oldConf = None
         self.checkConf(self.conf)
-        # self.args = args
         self.initConn()
         self.initLogFile(self.conf)
+        print self.conf
+
 
     def checkConf( self, conf ):
         if not 'programs' in conf:
             raise NameError("Config : No 'programs' in configuration")
         if 'logfile' in conf and 'enabled' not in conf['logfile']:
             raise NameError("Config : No 'enabled' in logfile")
-        for (key, value) in conf['programs']
+        for (key, value) in conf['programs'].items():
             if not 'cmd' in value:
                 raise NameError("Config: No 'cmd' in program: " + key)
             if not 'autorestart' in value:
@@ -66,54 +67,54 @@ class _TaskMaster:
     def reloadLogFile( self, newConf):
         if self.logFile is None and 'logfile' not in newConf:
             return
-        elif self.logFile not None and 'logfile' not in newConf:
+        elif self.logFile != None and 'logfile' not in newConf:
             self.logFile.close()
             self.logFile = None
         elif self.logFile is None and 'logfile' in newConf:
             self.initLogFile(newConf)
-        elif self.logFile not None and 'logfile' in newConf:
+        elif self.logFile != None and 'logfile' in newConf:
             self.logFile.close()
-            if 'enabled' in newConf['logFile'] and newConf['logFile']['enabled'] is True:
+            if 'enabled' in newConf['logfile'] and newConf['logfile']['enabled'] is True:
                 self.initLogFile(newConf)
 
-    def checkEnv(newEnv, oldEnv):
+    def checkEnv( self, newEnv, oldEnv ):
         shared_items = set(newEnv.items()) & set(oldEnv.items())
-        if shared_items.len() not oldEnv.len():
+        if len(shared_items) != len(oldEnv):
             return False
         return True
 
     def reloadProcess( self, newConf ):
         oldPrograms = self.conf['programs']
-        for (key, value) in newConf['programs']:
+        for (key, value) in newConf['programs'].items():
             if key not in oldPrograms and value['autostart'] is True:
                 self.launchProg(key, value, value['startretries'])
             elif key in self.conf['programs']:
-                if (value['cmd'] not oldPrograms[key]['cmd'] or
+                if (value['cmd'] != oldPrograms[key]['cmd'] or
                     ('stdout' in value and 'stdout' not in oldPrograms[key]) or
                     ('stdout' not in value and 'stdout' in oldPrograms[key]) or
-                    ('stdout' in value and 'stdout' in oldPrograms[key] and value['stdout'] not oldPrograms[key]['stdout']) or
+                    ('stdout' in value and 'stdout' in oldPrograms[key] and value['stdout'] != oldPrograms[key]['stdout']) or
                     ('stdin' in value and 'stdin' not in oldPrograms[key]) or
                     ('stdin' not in value and 'stdin' in oldPrograms[key]) or
-                    ('stdin' in value and 'stdin' in oldPrograms[key] and value['stdin'] not oldPrograms[key]['stdin']) or
+                    ('stdin' in value and 'stdin' in oldPrograms[key] and value['stdin'] != oldPrograms[key]['stdin']) or
                     ('stderr' in value and 'stderr' not in oldPrograms[key]) or
                     ('stderr' not in value and 'stderr' in oldPrograms[key]) or
-                    ('stderr' in value and 'stderr' in oldPrograms[key] and value['stderr'] not oldPrograms[key]['stderr']) or
+                    ('stderr' in value and 'stderr' in oldPrograms[key] and value['stderr'] != oldPrograms[key]['stderr']) or
                     ('workingdir' in value and 'workingdir' not in oldPrograms[key]) or
                     ('workingdir' not in value and 'workingdir' in oldPrograms[key]) or
-                    (value['workingdir'] not oldPrograms[key]['workingdir']) or
+                    ('workingdir' in value and 'workingdir' in oldPrograms[key] and value['workingdir'] != oldPrograms[key]['workingdir']) or
                     ('umask' in value and 'umask' not in oldPrograms[key]) or
                     ('umask' not in value and 'umask' in oldPrograms[key]) or
-                    (value['umask'] not oldPrograms[key]['umask']) or
+                    ('umask' in value and 'umask' in oldPrograms[key] and value['umask'] != oldPrograms[key]['umask']) or
                     ('env' in value and 'env' not in oldPrograms[key]) or
                     ('env' not in value and 'env' in oldPrograms[key]) or
-                    ('env' in value and 'env' in oldPrograms[key] and self.checkEnv(value['env'], oldPrograms[key]['env']) not True)):
+                    ('env' in value and 'env' in oldPrograms[key] and self.checkEnv(value['env'], oldPrograms[key]['env']) != True)):
                     self.exitingProg(key, self.conf['programs'][key])
                     self.launchProg(key, value, value['startretries'])
-                elif value['numprocs'] not oldPrograms[key]['numprocs']:
+                elif value['numprocs'] != oldPrograms[key]['numprocs']:
                     value['processes'] = oldPrograms[key]['processes']
                     if value['numprocs'] > oldPrograms[key]['numprocs']:
                         self.launchProg(key, value, value['startretries'], (value['numprocs'] - oldPrograms[key]['numprocs']))
-                    else: #remettre au dessus ? faire plus complexe ? oui...
+                    else:
                         self.exitingProg(key, value)
                         self.launchProg(key, value, value['startretries'])
                 else:
@@ -123,15 +124,21 @@ class _TaskMaster:
                 self.exitingProg(key, oldPrograms[key])
 
 
-    def reloadConfig( self ):
-        # LOADING NEW CONFIGURATION
+    def reloadConfig( self, signum, frame ):
+        verbose = "Reloading configuration:\n"
         newConf = {}
         if 'configurationFiles' not in self.conf:
             raise NameError("Config error no file(s) for configuration")
         for _file in self.conf['configurationFiles']:
-            openConf = yaml.load(open(_file, 'r'))
+            try:
+                openConf = yaml.load(open(_file, 'r'))
+                verbose += "\treloading " + _file
+            except IOError:
+                if errorConfig:
+                    if self.logFile is not None:
+                        self.logFile.write("Error opening configuration files while reloading\n")
             for (key, value) in openConf.items():
-                if not key in conf:
+                if not key in newConf:
                     newConf[key] = value
                 else:
                     newConf[key].update(value)
@@ -142,14 +149,18 @@ class _TaskMaster:
         self.checkConf(newConf)
         self.reloadProcess(newConf)
         self.conf = newConf
+        if self.logFile is not None:
+            self.logFile.write(verbose)
+        if self.conf["args"].verbose:
+            print verbose
 
     def initSignals( self ):
         self.nameToSignals = {}
         for n in dir(signal):
             if n.startswith('SIG') and not n.startswith('SIG_'):
                 self.nameToSignals[n] = getattr(signal, n)
+        signal.signal(signal.SIGHUP, self.reloadConfig)
 
-    # def initLogFile( self ):
     def initLogFile( self, conf ):
         self.logFile = None
         if 'logfile' in conf:
@@ -159,15 +170,6 @@ class _TaskMaster:
                         self.logFile = open(conf['logfile']['path'], 'a+')
                     else:
                         self.logFile = open('taskmaster.log', 'a+')
-        # self.logFile = None
-        # if 'logfile' in self.conf:
-        #     if 'enabled' in self.conf['logfile']:
-        #         if self.conf['logfile']['enabled'] is True:
-        #             if 'path' in self.conf['logfile']:
-        #                 self.logFile = open(self.conf['logfile']['path'], 'a+')
-        #             else:
-        #                 self.logFile = open('taskmaster.log', 'a+')
-
 
     def initConn( self ):
         self.serversocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -190,22 +192,28 @@ class _TaskMaster:
         self.makeLoop()
 
     def serverListen( self ):
-        readable, writable, errored = select.select(self.read_list, [], [], 1)
-        for s in readable:
-            if s is self.serversocket:
-                self.clientsocket, address = self.serversocket.accept()
-                self.read_list.append(self.clientsocket)
+        try:
+            readable, writable, errored = select.select(self.read_list, [], [], 1)
+            for s in readable:
+                if s is self.serversocket:
+                    self.clientsocket, address = self.serversocket.accept()
+                    self.read_list.append(self.clientsocket)
+                else:
+                    buf = s.recv(2048)
+                    if len(buf) > 0:
+                        ret = self.execInstruct(buf)
+                        self.clientsocket.send(str(len(ret)))
+                        if (len(self.clientsocket.recv(8))):
+                            self.clientsocket.send(ret)
+                        else:
+                            s.close()
+                            self.read_list.remove(s)
+        except select.error, v:
+            if v[0] != errno.EINTR:
+                print "ERREUR FATALE"
+                raise
             else:
-                buf = s.recv(2048)
-                if len(buf) > 0:
-                    print buf #salope
-                    ret = self.execInstruct(buf)
-                    self.clientsocket.send(str(len(ret)))
-                    if (len(self.clientsocket.recv(8))):
-                        self.clientsocket.send(ret)
-                    else:
-                        s.close()
-                        self.read_list.remove(s)
+                self.reloadConfig()
 
     def makeLoop( self ):
         try:
@@ -218,25 +226,21 @@ class _TaskMaster:
         except KeyboardInterrupt:
             exiting()
 
-    def getConfig( self ): # A REFAIRE !!!!!!!!!! ABSOLUMENT
-        # print "NOOOOOO"
+    def getConfig( self ):
         sendConf = self.conf.copy()
 
         for (key, value) in sendConf['programs'].items():
-            if "proX" in value:
-                sendConf['programs'][key].pop("proX", None)
+            if 'processes' in value:
+                sendConf['programs'][key].pop("processes", None)
 
         serializedConf = pickle.dumps(sendConf)
         return serializedConf
 
     def execInstruct( self, instruct ):
-        # print "YOLO"
         if (re.match("list", instruct)):
             return self.listProg()
         elif (re.match("shutdown", instruct)):
             return self.shutdown()
-        # elif (re.match("list", instruct)):
-        #     return self.listProg()
         elif (re.match("start_all", instruct)):
             return self.startAll()
         elif (re.match("stop_all", instruct)):
@@ -253,6 +257,8 @@ class _TaskMaster:
             return self.listProg()
         elif (re.match("getConfig", instruct)):
             return self.getConfig()
+        elif (re.match("reload", instruct)):
+            return self.reloadConfig()
         return "Instruction doesn't exist\n"
 
     def listProg( self ): #Liste les programmes et leur status, liste les PIDS des process (non ?) en meme temps et voila ##FAIT##
@@ -300,7 +306,7 @@ class _TaskMaster:
             ret += self.exitingProg(key, value)
         return ret
 
-    def start( self, name ): # FAIT
+    def start( self, name ):
         ret = ""
         if name in self.conf['programs']:
             ret += self.startingProgram(name, self.conf['programs'][name])
@@ -308,7 +314,7 @@ class _TaskMaster:
             ret += name + PROGRAM_NOT_FOUND
         return ret
 
-    def restart( self, name ): # FAIT
+    def restart( self, name ):
         ret = ""
         if name in self.conf['programs']:
             ret += self.exitingProg(name, self.conf['programs'][name])
@@ -317,7 +323,7 @@ class _TaskMaster:
             ret += name + PROGRAM_NOT_FOUND
         return ret
 
-    def stop( self, name ): #FAIT
+    def stop( self, name ):
         ret = ""
         if name in self.conf['programs']:
             ret += self.exitingProg(name, self.conf['programs'][name])
@@ -348,7 +354,6 @@ class _TaskMaster:
                 for (key, value) in progConf['env'].items():
                     "\t\t- " + str(key) + " = " + str(value) + "\n"
             ret += "\tprocesses ("+ str(progConf['numprocs']) +" max process(es) running) :\n"
-            # ret += "pid " + str(process['process'][1].pid) + process['process'][0].strftime(", started at %H:%M:%S %a, %d %b %Y")
             if 'processes' in progConf:
                 for process in progConf['processes']:
                     ret += "\t\t- " + process['status'] + "\t"
@@ -374,8 +379,6 @@ class _TaskMaster:
 
     def managePrograms( self ):
         for (key, value) in self.conf['programs'].items():
-            # progConf['processes'].append({'process' : (date, proc), 'status' : LAUNCHED, 'retries' : 0, 'stoptime' : None})
-
             dateNow = datetime.now()
             if 'processes' in value and len(value['processes']) > 0:
                 for process in value['processes']:
@@ -386,11 +389,9 @@ class _TaskMaster:
                     if returnValue is None:
                         if process['status'] is LAUNCHED:
                             dateDiff = (dateNow - process['process'][0]).total_seconds()
-                            # print "DATEDIFF --> " + str(dateDiff)
                             if dateDiff >= value['starttime']:
                                 process['status'] = RUNNING
                         elif process['status'] is STOPPING:
-                            # dateNow = datetime.now()
                             dateDiff = (dateNow - process['stoptime']).total_seconds()
                             if dateDiff >= value['killtime']:
                                 process['process'][1].send_signal(SIGKILL)
@@ -418,7 +419,6 @@ class _TaskMaster:
 
     def initFirstLaunch( self ):
         """lance tous les programs contenus dans self.conf['programs']"""
-        # RETIRER ce check ?? le mettre ailleurs ?
         if not 'programs' in self.conf:
             raise NameError("No 'programs' in configuration")
         else:
@@ -521,7 +521,6 @@ class _TaskMaster:
             if nbProcess != None:
                 if idx >= nbProcess:
                     break
-            print "NUMPROCS OF " + progName + " : " + str(idx)
 
             proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, stdin=inProg, cwd=workingDir)
 
@@ -538,7 +537,6 @@ class _TaskMaster:
         if 'umask' in progConf:
             os.umask(oldMask)
 
-        # outn = "Lancement du programme " + progName + " effectue..."
         return verbose
 
 #verifications a faire apres le parsing :

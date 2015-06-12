@@ -27,7 +27,6 @@ def delPid():
     os.remove(PID_FILE)
 
 def startDaemon():
-    # print "YOLO"
     try:
         pid = os.fork()
         if pid > 0:
@@ -77,13 +76,6 @@ def getTaskPid():
     return pid
 
 def daemonize():
-    # print "D-MON"
-    # try:
-    #     pidFile = file(PID_FILE, 'r')
-    #     pid = int(pidFile.read().strip())
-    #     pidFile.close()
-    # except IOError:
-    #     pid = None
     pid = getTaskPid()
     if pid:
         message = Scolors.RED + "pidfile %s already exist. Tasmaster already running ?\n" + Scolors.ENDC
@@ -156,11 +148,12 @@ def taskMasterRestart( args ):
     taskMasterStart(conf)
 
 def getConfig( args, errorConfig=True ):
-    conf = {'configurationFiles' : []}
+    conf = {}
+    configurationFiles = []
     if args.configuration_file:
         for _file in args.configuration_file:
             openConf = yaml.load(open(_file, 'r'))
-            conf['configurationFiles'].append(os.path.abspath(_file))
+            configurationFiles.append(os.path.abspath(_file))
             for (key, value) in openConf.items():
                 if not key in conf:
                     conf[key] = value
@@ -169,7 +162,7 @@ def getConfig( args, errorConfig=True ):
     else:
         try:
             _file = open(CONF_FILE, 'r')
-            conf['configurationFiles'].append(os.path.abspath(CONF_FILE))
+            configurationFiles.append(os.path.abspath(CONF_FILE))
             conf = yaml.load(_file)
         except IOError:
             if errorConfig:
@@ -177,28 +170,28 @@ def getConfig( args, errorConfig=True ):
                 sys.exit()
     conf["originalWD"] = os.getcwd()
     conf["args"] = args
+    conf["configurationFiles"] = configurationFiles
     return conf
 
 
 def main():
-    # try:
-    # conf = {}
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--daemon", help="run program as daemon", action="store_true")
-    parser.add_argument("-v", "--verbose", help="talk a lot", action="store_true")
-    parser.add_argument("--stop", help="stop the program", action="store_true")
-    parser.add_argument("--start", help="start", action="store_true")
-    parser.add_argument("--restart", help="restart", action="store_true")
-    parser.add_argument("-c", "--configuration-file", nargs='+', help="allow user to load specific configuration(s) file(s)")
-    args = parser.parse_args()
-    if args.start or (not args.stop and not args.restart):
-        conf = getConfig(args)
-        taskMasterStart(conf)
-    if args.stop:
-        taskMasterStop()
-    if args.restart:
-        taskMasterRestart(args)
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-d", "--daemon", help="run program as daemon", action="store_true")
+        parser.add_argument("-v", "--verbose", help="talk a lot", action="store_true")
+        parser.add_argument("--stop", help="stop the program", action="store_true")
+        parser.add_argument("--start", help="start", action="store_true")
+        parser.add_argument("--restart", help="restart", action="store_true")
+        parser.add_argument("-c", "--configuration-file", nargs='+', help="allow user to load specific configuration(s) file(s)")
+        args = parser.parse_args()
+        if args.start or (not args.stop and not args.restart):
+            conf = getConfig(args)
+            taskMasterStart(conf)
+            if args.stop:
+                taskMasterStop()
+                if args.restart:
+                    taskMasterRestart(args)
+    except:
+        print "FAIL error in main : ", sys.exc_info()[1]
 
-    # except:
-    #     print "FAIL error in main : ", sys.exc_info()[1]
 main()

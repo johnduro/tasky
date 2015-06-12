@@ -175,7 +175,7 @@ def getConfig( args, errorConfig=True ):
 
 
 def main():
-    try:
+    # try:
         parser = argparse.ArgumentParser()
         parser.add_argument("-d", "--daemon", help="run program as daemon", action="store_true")
         parser.add_argument("-v", "--verbose", help="talk a lot", action="store_true")
@@ -191,7 +191,8 @@ def main():
                 taskMasterStop()
                 if args.restart:
                     taskMasterRestart(args)
-    except:
-        print "FAIL error in main : ", sys.exc_info()[1]
+    # except:
+    #     # print Scolors.GREEN + "Exited" + Scolors.ENDC
+    #     print "FAIL error in main : ", sys.exc_info()[1]
 
 main()

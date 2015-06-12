@@ -35,8 +35,6 @@ class _TaskMaster:
         self.checkConf(self.conf)
         self.initConn()
         self.initLogFile(self.conf)
-        print self.conf
-
 
     def checkConf( self, conf ):
         if not 'programs' in conf:
@@ -83,6 +81,13 @@ class _TaskMaster:
             return False
         return True
 
+    def howManyProcessesRunning(self, processes):
+        ret = 0
+        for process in processes:
+            if process['status'] == RUNNING or process['status'] == LAUNCHED:
+                ret +=1
+        return ret
+
     def reloadProcess( self, newConf ):
         oldPrograms = self.conf['programs']
         for (key, value) in newConf['programs'].items():
@@ -109,20 +114,21 @@ class _TaskMaster:
                     ('env' not in value and 'env' in oldPrograms[key]) or
                     ('env' in value and 'env' in oldPrograms[key] and self.checkEnv(value['env'], oldPrograms[key]['env']) != True)):
                     self.exitingProg(key, self.conf['programs'][key])
-                    self.launchProg(key, value, value['startretries'])
+                    if self.howManyProcessesRunning( oldPrograms[key]['processes']) > 0:
+                        self.launchProg(key, value, value['startretries'])
                 elif value['numprocs'] != oldPrograms[key]['numprocs']:
                     value['processes'] = oldPrograms[key]['processes']
                     if value['numprocs'] > oldPrograms[key]['numprocs']:
                         self.launchProg(key, value, value['startretries'], (value['numprocs'] - oldPrograms[key]['numprocs']))
                     else:
                         self.exitingProg(key, value)
-                        self.launchProg(key, value, value['startretries'])
+                        if self.howManyProcessesRunning( oldPrograms[key]['processes']) > 0:
+                            self.launchProg(key, value, value['startretries'])
                 else:
                     value['processes'] = oldPrograms[key]['processes']
         for (key, value) in oldPrograms.items():
             if key not in newConf['programs']:
                 self.exitingProg(key, oldPrograms[key])
-
 
     def reloadConfig( self, signum, frame ):
         verbose = "Reloading configuration:\n"
@@ -132,7 +138,7 @@ class _TaskMaster:
         for _file in self.conf['configurationFiles']:
             try:
                 openConf = yaml.load(open(_file, 'r'))
-                verbose += "\treloading " + _file
+                verbose += "\treloading " + _file + '\n'
             except IOError:
                 if errorConfig:
                     if self.logFile is not None:
@@ -153,6 +159,7 @@ class _TaskMaster:
             self.logFile.write(verbose)
         if self.conf["args"].verbose:
             print verbose
+        return verbose
 
     def initSignals( self ):
         self.nameToSignals = {}
@@ -213,7 +220,7 @@ class _TaskMaster:
                 print "ERREUR FATALE"
                 raise
             else:
-                self.reloadConfig()
+                self.reloadConfig(None, None)
 
     def makeLoop( self ):
         try:
@@ -258,7 +265,7 @@ class _TaskMaster:
         elif (re.match("getConfig", instruct)):
             return self.getConfig()
         elif (re.match("reload", instruct)):
-            return self.reloadConfig()
+            return self.reloadConfig(None, None)
         return "Instruction doesn't exist\n"
 
     def listProg( self ): #Liste les programmes et leur status, liste les PIDS des process (non ?) en meme temps et voila ##FAIT##

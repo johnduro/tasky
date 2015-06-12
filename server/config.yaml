@@ -1,13 +1,13 @@
 programs:
     echo:
-        cmd: "/bin/echo hoh"
+        cmd: "/bin/echo aaa"
         numprocs: 1
-        autostart: true #
+        autostart: false
         autorestart: unexpected # always unexpected never
         exitcodes:
             - 0
             - 2
-        starttime: 5
+        starttime: 0
         startretries: 3
         stopsignal: TERM
         killtime: 10

@@ -17,7 +17,7 @@ UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 progs = {}
 
 #liste des instructions considerees valides
-valid = ["start ", "stop ", "restart ", "shutdown", "launch", "list", "info ", "info", "start_all", "stop_all"]
+valid = ["start ", "stop ", "restart ", "shutdown", "reload", "launch", "list", "info ", "info", "start_all", "stop_all"]
 validQuery = ""
 for instruc in valid:
     if (len(validQuery)):
@@ -25,7 +25,7 @@ for instruc in valid:
     else:
         validQuery = "^"
     validQuery = validQuery + "(" + instruc + ")"
-print validQuery
+print Scolors.CYAN + "Type 'help' for commands." + Scolors.ENDC
 
 def init_conn(clientsocket):
     try:
@@ -33,9 +33,9 @@ def init_conn(clientsocket):
         clientsocket.connect(UNIX_SOCKET_PATH)
         # clientsocket.connect("/tmp/conn")
     except socket_error as serr:
-        if serr.errno != errno.ECONNREFUSED:
+        # if serr.errno != errno.ECONNREFUSED:
             # Not the error we are looking for, re-raise
-            raise serr
+            # raise serr
         print Scolors.RED + "Can't connect to server." + Scolors.ENDC
         exiting()
     return clientsocket

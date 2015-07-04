@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import socket
+
 class Scolors:
     PINK = '\033[95m'
     BLUE = '\033[94m'

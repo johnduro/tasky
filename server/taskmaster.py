@@ -65,6 +65,8 @@ class _TaskMaster:
                 value['startretries'] = 0
             if not 'exitcodes' in value:
                 value['exitcodes'] = []
+            if 'processes' not in value:
+                value['processes'] = []
             if not 'stopsignal' in value:
                 value['stopsignal'] = 'TERM'
             if 'SIG' + value['stopsignal'] not in self.nameToSignals:
@@ -152,6 +154,12 @@ class _TaskMaster:
                 if errorConfig:
                     if self.logFile is not None:
                         self.logFile.write("Error opening configuration files while reloading\n")
+                exiting()
+            except:
+                if self.logFile is not None:
+                    self.logFile.write("Error opening configuration files while reloading\n")
+                print "Error parsing configuration files (indentation)\n"
+                exiting()
             for (key, value) in openConf.items():
                 if not key in newConf:
                     newConf[key] = value

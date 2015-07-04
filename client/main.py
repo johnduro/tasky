@@ -7,6 +7,7 @@ import readline, re, socket
 from scolors import Scolors
 from exit import query_yes_no, exiting, exit_query
 #Gestion Erreur Connection
+import os
 import errno
 from socket import error as socket_error
 #gestion daemon
@@ -30,6 +31,9 @@ print Scolors.CYAN + "Type 'help' for commands." + Scolors.ENDC
 def init_conn(clientsocket):
     try:
         # clientsocket.connect(('localhost', 8965))
+        clientsocket.settimeout(3)
+        # if not os.path.isfile(UNIX_SOCKET_PATH):
+        #     raise socket_error("djsa")
         clientsocket.connect(UNIX_SOCKET_PATH)
         # clientsocket.connect("/tmp/conn")
     except socket_error as serr:
@@ -86,6 +90,9 @@ def main():
                 print instruction + ": " + Scolors.RED + "invalid command" + Scolors.ENDC
             instruction = raw_input(prompt)
     except KeyboardInterrupt:
+        exiting()
+    except :
+        print "Socket Timeout"
         exiting()
 
 main()

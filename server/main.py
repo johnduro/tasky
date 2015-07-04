@@ -16,7 +16,7 @@ import socket
 import pickle
 from socket import error as socket_error
 from signal import SIGTERM
-from exit import Scolors
+from exit import Scolors, exiting
 
 UNIX_SOCKET_PATH = "/tmp/taskmaster_unix_socket"
 PID_FILE = "/tmp/taskmaster.pid"
@@ -152,7 +152,14 @@ def getConfig( args, errorConfig=True ):
     configurationFiles = []
     if args.configuration_file:
         for _file in args.configuration_file:
-            openConf = yaml.load(open(_file, 'r'))
+            try:
+                openConf = yaml.load(open(_file, 'r'))
+            except IOError:
+                print "Error opening configuration files while reloading\n"
+                exiting()
+            except:
+                print "Error parsing configuration files (indentation)\n"
+                exiting()
             configurationFiles.append(os.path.abspath(_file))
             for (key, value) in openConf.items():
                 if not key in conf:
@@ -167,7 +174,10 @@ def getConfig( args, errorConfig=True ):
         except IOError:
             if errorConfig:
                 print Scolors.RED + "Taskmaster can't find any configuration file" + Scolors.ENDC
-                sys.exit()
+                exiting()
+        except:
+            print "Error parsing configuration files (indentation)\n"
+            exiting()
     conf["originalWD"] = os.getcwd()
     conf["args"] = args
     conf["configurationFiles"] = configurationFiles
@@ -175,7 +185,7 @@ def getConfig( args, errorConfig=True ):
 
 
 def main():
-    # try:
+    try:
         parser = argparse.ArgumentParser()
         parser.add_argument("-d", "--daemon", help="run program as daemon", action="store_true")
         parser.add_argument("-v", "--verbose", help="talk a lot", action="store_true")
@@ -191,8 +201,7 @@ def main():
                 taskMasterStop()
                 if args.restart:
                     taskMasterRestart(args)
-    # except:
-    #     # print Scolors.GREEN + "Exited" + Scolors.ENDC
-    #     print "FAIL error in main : ", sys.exc_info()[1]
+    except:
+        print "Exiting due to a an Error : ", sys.exc_info()[1]
 
 main()

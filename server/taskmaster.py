@@ -11,6 +11,7 @@ import select
 import pprint
 import signal
 import errno
+from pprint import pprint
 
 from exit import exiting, Scolors
 from subprocess import call
@@ -32,7 +33,11 @@ class _TaskMaster:
     def __init__( self, conf ):
         self.initSignals()
         self.conf = conf
-        self.checkConf(self.conf)
+        try:
+            self.checkConf(self.conf)
+        except NameError as e:
+            print e.message
+            exiting()
         self.initConn()
         self.initLogFile(self.conf)
 
@@ -44,6 +49,10 @@ class _TaskMaster:
         for (key, value) in conf['programs'].items():
             if not 'cmd' in value:
                 raise NameError("Config: No 'cmd' in program: " + key)
+            if os.path.isfile(value['cmd'].split()[0]):
+                value['cmd'] = os.path.abspath(value['cmd'])
+            else:
+                raise NameError("Command not found in absolute or relative path2 " + key)
             if not 'autorestart' in value:
                 raise NameError("Config: No 'autorestart' in program: " + key)
             if not 'numprocs' in value or value['numprocs'] <= 0:
@@ -152,7 +161,11 @@ class _TaskMaster:
         newConf['originalWD'] = self.conf['originalWD']
         newConf['args'] = self.conf['args']
         self.reloadLogFile(newConf)
-        self.checkConf(newConf)
+        try:
+            self.checkConf(newConf)
+        except NameError as e:
+            print e.message
+            exiting()
         self.reloadProcess(newConf)
         self.conf = newConf
         if self.logFile is not None:
@@ -512,7 +525,6 @@ class _TaskMaster:
 
     def launchProg( self, progName, progConf, nbRetries, nbProcess = None ):
         """lance les processus de progName avec la configuration dans progConf"""
-
         if 'processes' not in progConf:
             progConf['processes'] = []
 
@@ -528,7 +540,6 @@ class _TaskMaster:
             if nbProcess != None:
                 if idx >= nbProcess:
                     break
-
             proc = psutil.Popen(progConf['cmd'].split(), env=dict(env), stderr=errProg, stdout=outProg, stdin=inProg, cwd=workingDir)
 
             date = datetime.now()

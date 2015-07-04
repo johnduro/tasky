@@ -2,7 +2,7 @@ programs:
     echo:
         cmd: "/bin/echo aaa"
         numprocs: 1
-        autostart: true
+        autostart: false
         autorestart: unexpected # always unexpected never
         exitcodes:
             - 0
@@ -57,13 +57,14 @@ programs:
         workingdir: /tmp
         umask: 000
     testwhile:
-        cmd: "/nfs/zfs-student-4/users/2013/lsirigna/rendu/tasky/server/../test/testwhile"
-        # cmd: "../test/testwhile"
+        cmd: "/nfs/zfs-student-4/users/2013/mgarcin/projectsyear2/taskyfinal/test/testwhile"
         # cmd: "/home/czevak/documents/python.d/taskmaster.d/test/testwhile"
         numprocs: 1
         autostart: true
-        autorestart: true # always unexpected never
+        autorestart: never # always unexpected never
         exitcodes:
+            - 0
+            - 2
         starttime: 5
         startretries: 3
         stopsignal: TERM

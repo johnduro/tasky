@@ -52,7 +52,7 @@ class _TaskMaster:
             if os.path.isfile(value['cmd'].split()[0]):
                 value['cmd'] = os.path.abspath(value['cmd'])
             else:
-                raise NameError("Command not found in absolute or relative path2 " + key)
+                raise NameError("Command not found in absolute or relative path in " + key)
             if not 'autorestart' in value:
                 raise NameError("Config: No 'autorestart' in program: " + key)
             if not 'numprocs' in value or value['numprocs'] <= 0:

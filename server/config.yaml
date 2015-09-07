@@ -1,6 +1,6 @@
 programs:
     echo:
-        cmd: "/bin/echo aaa"
+        cmd: "/bin/echo bb"
         numprocs: 1
         autostart: false
         autorestart: unexpected # always unexpected never
@@ -57,7 +57,7 @@ programs:
         workingdir: /tmp
         umask: 000
     testwhile:
-        cmd: "../test/testwhile"
+        cmd: "/nfs/zfs-student-4/users/2013_paris/tdeniset/projets/python/tasky/test/testwhile"
         # cmd: "/home/czevak/documents/python.d/taskmaster.d/test/testwhile"
         numprocs: 1
         autostart: true

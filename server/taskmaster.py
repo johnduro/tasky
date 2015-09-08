@@ -152,12 +152,10 @@ class _TaskMaster:
                 verbose += "\treloading " + _file + '\n'
             except IOError:
                 if errorConfig:
-                    if self.logFile is not None:
-                        self.logFile.write("Error opening configuration files while reloading\n")
+                    self.printToLogfile("Error opening configuration files while reloading\n")
                 exiting()
             except:
-                if self.logFile is not None:
-                    self.logFile.write("Error opening configuration files while reloading\n")
+                self.printToLogfile("Error opening configuration files while reloading\n")
                 print "Error parsing configuration files (indentation)\n"
                 exiting()
             for (key, value) in openConf.items():
@@ -176,8 +174,7 @@ class _TaskMaster:
             exiting()
         self.reloadProcess(newConf)
         self.conf = newConf
-        if self.logFile is not None:
-            self.logFile.write(verbose)
+        self.printToLogfile(verbose)
         if self.conf["args"].verbose:
             print verbose
         return verbose
@@ -469,6 +466,7 @@ class _TaskMaster:
 
         if self.conf["args"].verbose:
             print verbose
+        self.printToLogfile(verbose)
         return verbose
 
     def relaunchProg( self, progName, progConf, process ):
@@ -477,8 +475,7 @@ class _TaskMaster:
             verbose = "Program " + progName + " is being relaunched\n"
             if self.conf["args"].verbose:
                 print verbose
-            if self.logFile is not None:
-                self.logFile.write(verbose)
+            self.printToLogfile(verbose)
             self.launchProg(progName, progConf, process['retries'] - 1, 1)
             progConf['processes'].remove(process)
         else:
@@ -486,8 +483,7 @@ class _TaskMaster:
             verbose = "Program " + progName + " has been relaunched too many times\n"
             if self.conf["args"].verbose:
                 print verbose
-            if self.logFile is not None:
-                self.logFile.write(verbose)
+            self.printToLogfile(verbose)
 
     def getEnv( self, progConf ):
         env = os.environ.copy()
@@ -557,14 +553,18 @@ class _TaskMaster:
         if self.conf["args"].verbose:
             print verbose
 
-        if self.logFile is not None:
-            self.logFile.write(verbose)
+        self.printToLogfile(verbose)
 
         if 'umask' in progConf:
             os.umask(oldMask)
 
         return verbose
 
+    def printToLogfile (self, text):
+        """ajoute a la fin du fichier de log le texte passe en parametre"""
+        if self.logFile is not None:
+            self.logFile.write(text)
+            self.logFile.flush()
 #verifications a faire apres le parsing :
 # verifier la presence de numprocs ou le mettre a 1
 # verifier la presence de cmd sinon raise une exception ERROR IMPORTANTE A REGLER
